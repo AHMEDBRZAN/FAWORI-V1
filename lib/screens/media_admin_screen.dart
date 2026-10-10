@@ -15,8 +15,7 @@ class MediaAdminScreen extends StatefulWidget {
 }
 
 class _MediaAdminScreenState extends State<MediaAdminScreen> {
-  static const String _kProxy =
-      const String _kProxy = 'DISABLED_UNTIL_SERVER_UPDATE';
+  static const String _kProxy ='DISABLED_UNTIL_SERVER_UPDATE';
   static const String _kPath = 'assets/data/media.json';
 
   List<Map<String, dynamic>> _items = [];
@@ -34,7 +33,7 @@ class _MediaAdminScreenState extends State<MediaAdminScreen> {
     try {
       final r = await http
           .get(Uri.parse(
-              'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI/main/$_kPath?t=${DateTime.now().millisecondsSinceEpoch}'))
+              'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main/$_kPath?t=${DateTime.now().millisecondsSinceEpoch}'))
           .timeout(const Duration(seconds: 12));
       if (r.statusCode == 200) {
         final j = jsonDecode(r.body);
