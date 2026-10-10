@@ -12,16 +12,13 @@ import 'products_screen.dart';
 import 'profile_screen.dart';
 import 'simple_screens.dart';
 
-// ======================================================
-// 📐 هندسة الشريط الثابتة (مطابقة للفيديو)
-// ======================================================
-const double _kBarH = 62; // ارتفاع الحبّة
-const double _kStackH = 84; // الارتفاع الكلي مع الدائرة
-const double _kCircle = 54; // قطر الدائرة الطافية
-const double _kR = _kBarH / 2; // نصف قطر حافة الحبّة
-const double _kNotchW = 26; // نصف عرض الغرزة عند الحافة
-const double _kNotchS = 6; // كتف الغرزة
-const double _kNotchD = 38; // عمق الغرزة
+const double _kBarH = 62;
+const double _kStackH = 84;
+const double _kCircle = 54;
+const double _kR = _kBarH / 2;
+const double _kNotchW = 26;
+const double _kNotchS = 6;
+const double _kNotchD = 38;
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -32,8 +29,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _idx = 0;
 
-  /// ✅ تبويب مع قفل الضيف: المحفظة مقفلة للضيوف
-  void _onTab(int i, bool isGuest, bool isArabic) {
+  void _onTab(int i, bool isGuest, bool isArabic, int totalTabs) {
     if (isGuest && i == 2) {
       GuestGuard.lock(
         context,
@@ -41,7 +37,7 @@ class _MainScreenState extends State<MainScreen> {
         message: isArabic
             ? 'سجل دخولك أولاً واشتري مواد فاوري لتربح النقاط'
             : 'Sign in first and buy Fawori products to earn points',
-        onLogin: () => setState(() => _idx = 4),
+        onLogin: () => setState(() => _idx = totalTabs - 1),
         loginLabel: isArabic ? 'تسجيل الدخول' : 'Sign in',
       );
       return;
@@ -53,47 +49,65 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final s = context.watch<AppSettings>();
     final bool isAdmin = s.isAdmin || s.isImageAdmin;
-    final bool isController = s.user?.id == 'ctrl';
+    final bool isController = s.isController;
     final bool dark = Theme.of(context).brightness == Brightness.dark;
 
-    final screens = <Widget>[
-      HomeScreen(onOpenProducts: () => setState(() => _idx = 1)),
-      const ProductsScreen(),
-      const WalletScreen(),
-      isController
-          ? const AdminCodeView()
-          : (isAdmin ? const CreateAccountPage() : const FavoritesScreen()),
-      isAdmin ? const MediaAdminScreen() : const ProfileScreen(),
-    ];
+    // ✅ بناء القوائم حسب الدور
+    final screens = <Widget>[];
+    final icons = <IconData>[];
+    final labels = <String>[];
 
-    final icons = <IconData>[
-      Icons.home_rounded,
-      Icons.grid_view_rounded,
-      Icons.account_balance_wallet_rounded,
-      isController
-          ? Icons.code_rounded
-          : (isAdmin
-              ? Icons.person_add_alt_1_rounded
-              : Icons.favorite_rounded),
-      isAdmin ? Icons.campaign_rounded : Icons.person_rounded,
-    ];
-    final labels = <String>[
-      s.isArabic ? 'الرئيسية' : 'Home',
-      s.isArabic ? 'المنتجات' : 'Products',
-      s.isArabic
-          ? (isAdmin ? 'النقاط والرصيد' : 'المحفظة')
-          : (isAdmin ? 'Points' : 'Wallet'),
-      s.isArabic
-          ? (isController
-              ? 'الإدارة'
-              : (isAdmin ? 'إنشاء حساب' : 'المفضلة'))
-          : (isController
-              ? 'Admin'
-              : (isAdmin ? 'Create' : 'Favorites')),
-      s.isArabic
-          ? (isAdmin ? 'إدارة الإعلام' : 'ملف شخصي')
-          : (isAdmin ? 'Media' : 'Profile'),
-    ];
+    // التبويب 0: الرئيسية
+    screens.add(HomeScreen(onOpenProducts: () => setState(() => _idx = 1)));
+    icons.add(Icons.home_rounded);
+    labels.add(s.isArabic ? 'الرئيسية' : 'Home');
+
+    // التبويب 1: المنتجات
+    screens.add(const ProductsScreen());
+    icons.add(Icons.grid_view_rounded);
+    labels.add(s.isArabic ? 'المنتجات' : 'Products');
+
+    // التبويب 2: المحفظة
+    screens.add(const WalletScreen());
+    icons.add(Icons.account_balance_wallet_rounded);
+    labels.add(s.isArabic
+        ? (isAdmin ? 'النقاط والرصيد' : 'المحفظة')
+        : (isAdmin ? 'Points' : 'Wallet'));
+
+    // التبويب 3: المستخدمون (للمتحكم والمدير)
+    if (isAdmin) {
+      screens.add(const AdminUsersPage());
+      icons.add(Icons.person_add_alt_1_rounded);
+      labels.add(s.isArabic ? 'المستخدمون' : 'Users');
+    } else {
+      screens.add(const FavoritesScreen());
+      icons.add(Icons.favorite_rounded);
+      labels.add(s.isArabic ? 'المفضلة' : 'Favorites');
+    }
+
+    // التبويب 4: الإدارة (للمتحكم فقط) أو إدارة الإعلام (للمدير) أو الملف الشخصي
+    if (isController) {
+      screens.add(const AdminCodeView());
+      icons.add(Icons.code_rounded);
+      labels.add(s.isArabic ? 'الإدارة' : 'Admin');
+    } else if (isAdmin) {
+      screens.add(const MediaAdminScreen());
+      icons.add(Icons.campaign_rounded);
+      labels.add(s.isArabic ? 'إدارة الإعلام' : 'Media');
+    } else {
+      screens.add(const ProfileScreen());
+      icons.add(Icons.person_rounded);
+      labels.add(s.isArabic ? 'ملف شخصي' : 'Profile');
+    }
+
+    // التبويب 5: الملف الشخصي (للمتحكم والمدير)
+    if (isAdmin) {
+      screens.add(const ProfileScreen());
+      icons.add(Icons.person_rounded);
+      labels.add(s.isArabic ? 'ملف شخصي' : 'Profile');
+    }
+
+    final totalTabs = screens.length;
 
     return Scaffold(
       extendBody: true,
@@ -103,15 +117,12 @@ class _MainScreenState extends State<MainScreen> {
         dark: dark,
         icons: icons,
         labels: labels,
-        onTap: (i) => _onTab(i, s.isGuest, s.isArabic),
+        onTap: (i) => _onTab(i, s.isGuest, s.isArabic, totalTabs),
       ),
     );
   }
 }
 
-// ======================================================
-// 🎀 الشريط العائم: غرزة تحتضن دائرة تنزلق بنعومة
-// ======================================================
 class _FancyBottomNav extends StatefulWidget {
   final int index;
   final bool dark;
@@ -163,6 +174,8 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
   Widget build(BuildContext context) {
     final dark = widget.dark;
     final rtl = Directionality.of(context) == TextDirection.rtl;
+    final totalTabs = widget.icons.length;
+    
     return Padding(
       padding: EdgeInsets.fromLTRB(
           18, 0, 18, MediaQuery.of(context).padding.bottom + 10),
@@ -170,7 +183,7 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
         builder: (context, cons) {
           final W = cons.maxWidth;
           const double pad = 14;
-          final slotInner = (W - pad * 2) / 5;
+          final slotInner = (W - pad * 2) / totalTabs;
           double centerOf(int i) {
             final c = pad + slotInner * i + slotInner / 2;
             return rtl ? W - c : c;
@@ -187,7 +200,6 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // ✅ الحبّة المغروفة (ترسم حياً مع الحركة)
                     Positioned(
                       left: 0,
                       right: 0,
@@ -197,7 +209,6 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
                         painter: _BarPainter(cx: cx, dark: dark),
                       ),
                     ),
-                    // ✅ خط المقبض أسفل المنتصف
                     Positioned(
                       left: 0,
                       right: 0,
@@ -215,7 +226,6 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
                         ),
                       ),
                     ),
-                    // ✅ الأيقونات (النشطة تختفي لأنها داخل الدائرة)
                     Positioned(
                       left: pad,
                       right: pad,
@@ -223,7 +233,7 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
                       child: SizedBox(
                         height: _kBarH,
                         child: Row(
-                          children: List.generate(5, (i) {
+                          children: List.generate(totalTabs, (i) {
                             final active = widget.index == i;
                             return Expanded(
                               child: _NavInk(
@@ -246,7 +256,6 @@ class _FancyBottomNavState extends State<_FancyBottomNav>
                         ),
                       ),
                     ),
-                    // ✅ الدائرة الماجنتا الطافية داخل الغرزة
                     Positioned(
                       left: cx - _kCircle / 2,
                       top: _kStackH - _kBarH - _kCircle / 2 + 8,
@@ -341,9 +350,6 @@ class _NavInk extends StatelessWidget {
   }
 }
 
-// ======================================================
-// 🖌️ رسّام الحبّة + الغرزة (تلتحم بالحواف الطرفية)
-// ======================================================
 class _BarPainter extends CustomPainter {
   final double cx;
   final bool dark;
