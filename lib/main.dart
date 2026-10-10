@@ -1,23 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/app_settings.dart';
 import 'core/favorites.dart';
+import 'core/firebase_options.dart';
 import 'core/messenger.dart';
 import 'core/theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 
-/// ✅ مفتاح عام للوصول لـ Supabase من أي مكان في التطبيق
-final supabase = Supabase.instance.client;
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ تهيئة Supabase قبل أي شيء آخر
-  await Supabase.initialize(
-    url: 'https://nnaiffzxrbguutxeawot.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uYWlmZnp4cmJndXV0eGVhd290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2MDQyMjUsImV4cCI6MjEwNjE4MDIyNX0.6A3LNXFi2rr7mkcaG5EYLX2fSfbqUujxP9wRVMfCSF4', // ← ضع مفتاحك الكامل هنا
+  // تهيئة Firebase قبل أي شيء
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
 
   runApp(MultiProvider(
@@ -72,39 +69,7 @@ class _GateState extends State<_Gate> {
           .restoreSession()
           .timeout(const Duration(seconds: 3));
     } catch (_) {}
-
-    // ✅ اختبار اتصال Supabase بصرياً (Snackbar على الشاشة)
-    await _testSupabase();
-
     if (mounted) setState(() => _ready = true);
-  }
-
-  /// 🧪 اختبار بسيط للاتصال بـ Supabase + عرض النتيجة
-  Future<void> _testSupabase() async {
-    try {
-      final res = await supabase
-          .from('products')
-          .select()
-          .timeout(const Duration(seconds: 8));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('✅ اتصال Supabase ناجح — ${res.length} منتج'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('❌ فشل الاتصال بـ Supabase: $e',
-              style: const TextStyle(fontSize: 12)),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 6),
-        ));
-      }
-    }
   }
 
   @override
