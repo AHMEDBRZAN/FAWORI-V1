@@ -16,7 +16,7 @@ class MediaAdminScreen extends StatefulWidget {
 
 class _MediaAdminScreenState extends State<MediaAdminScreen> {
   static const String _kProxy =
-      'https://fawori.ahmdkaka1997.workers.dev/put';
+      const String _kProxy = 'DISABLED_UNTIL_SERVER_UPDATE';
   static const String _kPath = 'assets/data/media.json';
 
   List<Map<String, dynamic>> _items = [];
