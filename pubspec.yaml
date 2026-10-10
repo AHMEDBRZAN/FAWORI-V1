@@ -9,15 +9,16 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
+  flutter_localizations: حم
     sdk: flutter
   provider: ^6.1.2
   http: ^1.2.0
   shared_preferences: ^2.2.0
   image_picker: ^1.1.2
   intl: ^0.19.0
-  # ✅ جديد: مكتبة Supabase للاتصال بقاعدة البيانات السحابية
-  supabase_flutter: ^2.5.9
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
 
 dev_dependencies:
   flutter_test:
@@ -28,4 +29,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
-    - assets/data/ 
+    - assets/data/
