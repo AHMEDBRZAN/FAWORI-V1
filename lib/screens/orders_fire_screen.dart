@@ -4,6 +4,19 @@ import '../core/app_settings.dart';
 import '../core/repositories/orders_repo.dart';
 import '../core/theme.dart';
 
+/// تنسيق الأرقام بفواصل (مثل 125000 → 125,000)
+String fmtThousands(num n) {
+  final s = n.toInt().toString();
+  final buf = StringBuffer();
+  int count = 0;
+  for (int i = s.length - 1; i >= 0; i--) {
+    if (count > 0 && count % 3 == 0 && s[i] != '-') buf.write(',');
+    buf.write(s[i]);
+    count++;
+  }
+  return buf.toString().split('').reversed.join('');
+}
+
 class OrdersFireScreen extends StatefulWidget {
   const OrdersFireScreen({super.key});
   @override
