@@ -1,190 +1,459 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
-import '../core/orders_service.dart';
-import '../core/store_service.dart';
+import '../core/repositories/user_repo.dart';
 import '../core/theme.dart';
 
-// ======================================================
-// ✏️ نافذة تعديل مستخدم
-// ======================================================
+class AdminUsersPage extends StatefulWidget {
+  const AdminUsersPage({super.key});
+  @override
+  State<AdminUsersPage> createState() => _AdminUsersPageState();
+}
 
-class EditUserDialog {
-  static Future<bool> show(BuildContext context, User u) async {
+class _AdminUsersPageState extends State<AdminUsersPage> {
+  List<AppUser> _users = [];
+  bool _loading = true;
+  String? _err;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _err = null;
+    });
+    try {
+      final list = await userRepo.listUsers();
+      if (mounted) setState(() => _users = list);
+    } catch (e) {
+      if (mounted) setState(() => _err = '$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool get _isCtrl => context.read<AppSettings>().isController;
+
+  Future<void> _create() async {
+    final ok = await _CreateDialog.show(context);
+    if (ok == true) _load();
+  }
+
+  Future<void> _edit(AppUser u) async {
+    final ok = await _EditDialog.show(context, u);
+    if (ok == true) _load();
+  }
+
+  Future<void> _delete(AppUser u) async {
+    if (!_isCtrl) {
+      _snack(context, 'الحذف للمتحكم فقط', Colors.red, Icons.lock_rounded);
+      return;
+    }
     final s = context.read<AppSettings>();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.isArabic ? 'حذف الحساب' : 'Delete account'),
+        content: Text(s.isArabic
+            ? 'هل أنت متأكد من حذف ${u.name}؟'
+            : 'Delete ${u.name}?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.isArabic ? 'حذف' : 'Delete')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await userRepo.deleteUser(u.id);
+      if (mounted) {
+        _snack(context, 'تم الحذف', Colors.green, Icons.check_rounded);
+        _load();
+      }
+    } catch (e) {
+      if (mounted) _snack(context, 'فشل: $e', Colors.red, Icons.error_rounded);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppSettings>();
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor:
+          dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(s.isArabic ? 'إدارة المستخدمين' : 'Users management',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: dark ? Colors.white : AppColors.ink)),
+        actions: [
+          IconButton(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.orange),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppColors.orange,
+        onPressed: _create,
+        icon: const Icon(Icons.person_add_rounded, color: Colors.white),
+        label: Text(s.isArabic ? 'حساب جديد' : 'New user',
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _err != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline_rounded,
+                          color: Colors.red, size: 48),
+                      const SizedBox(height: 10),
+                      Text('$_err',
+                          style: const TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _users.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) =>
+                        _userCard(_users[i], dark, s),
+                  ),
+                ),
+    );
+  }
+
+  Widget _userCard(AppUser u, bool dark, AppSettings s) {
+    final isMe = u.id == s.user?.id;
+    final color = _roleColor(u.role);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF1E1E28) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withAlpha(80)),
+        boxShadow: [
+          BoxShadow(
+              color: color.withAlpha(30),
+              blurRadius: 10,
+              offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: <Color>[color, color.withAlpha(180)]),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(_roleIcon(u.role), color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(u.name.isEmpty ? '—' : u.name,
+                          style: TextStyle(
+                              color: dark ? Colors.white : AppColors.ink,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14)),
+                    ),
+                    if (isMe)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.orange.withAlpha(30),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(s.isArabic ? 'أنت' : 'You',
+                            style: const TextStyle(
+                                color: AppColors.orange,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(u.phone.isEmpty ? '—' : u.phone,
+                    style: TextStyle(
+                        color:
+                            dark ? Colors.grey.shade400 : Colors.grey.shade700,
+                        fontSize: 12)),
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(_roleLabel(u.role, s.isArabic),
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Column(
+            children: [
+              _miniBtn(Icons.edit_rounded, AppColors.teal, () => _edit(u)),
+              const SizedBox(height: 6),
+              _miniBtn(
+                Icons.delete_rounded,
+                _isCtrl ? Colors.red : Colors.grey,
+                isMe ? null : () => _delete(u),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniBtn(IconData ic, Color c, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: c.withAlpha(20),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(ic, color: c, size: 18),
+      ),
+    );
+  }
+
+  Color _roleColor(String r) {
+    switch (r) {
+      case 'ctrl':
+        return const Color(0xFFB71C1C);
+      case 'admin':
+        return Colors.red;
+      case 'agent':
+        return const Color(0xFF9B59B6);
+      case 'tech':
+        return AppColors.orange;
+      default:
+        return AppColors.teal;
+    }
+  }
+
+  IconData _roleIcon(String r) {
+    switch (r) {
+      case 'ctrl':
+        return Icons.shield_rounded;
+      case 'admin':
+        return Icons.admin_panel_settings_rounded;
+      case 'agent':
+        return Icons.support_agent_rounded;
+      case 'tech':
+        return Icons.format_paint_rounded;
+      default:
+        return Icons.person_rounded;
+    }
+  }
+
+  String _roleLabel(String r, bool ar) {
+    switch (r) {
+      case 'ctrl':
+        return ar ? 'متحكم' : 'Controller';
+      case 'admin':
+        return ar ? 'مدير' : 'Admin';
+      case 'agent':
+        return ar ? 'وكيل' : 'Agent';
+      case 'tech':
+        return ar ? 'صباغ' : 'Painter';
+      case 'guest':
+        return ar ? 'ضيف' : 'Guest';
+      default:
+        return ar ? 'عميل' : 'Client';
+    }
+  }
+}
+
+class _EditDialog {
+  static Future<bool> show(BuildContext context, AppUser u) async {
+    final s = context.read<AppSettings>();
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final nameC = TextEditingController(text: u.name);
     final phoneC = TextEditingController(text: u.phone);
-    final passC = TextEditingController(text: u.password ?? '');
+    final passC = TextEditingController();
     String role = u.role;
-    bool adminUnlocked = false;
+    final isCtrl = s.isController;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          // ✅ شارة دور داخل نافذة التعديل
-          Widget roleChip(String label, String value, Color c,
-              {VoidCallback? onLongPress}) {
-            final active = role == value;
-            return Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
-              child: InkWell(
-                onTap: () => setSt(() => role = value),
-                onLongPress: onLongPress,
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    gradient: active
-                        ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
-                        : null,
-                    color: active ? null : c.withAlpha(18),
-                    borderRadius: BorderRadius.circular(14),
-                    border:
-                        Border.all(color: c.withAlpha(active ? 180 : 80)),
-                  ),
-                  child: Text(label,
-                      style: TextStyle(
-                          color: active ? Colors.white : c,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12)),
-                ),
+        builder: (ctx, setSt) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Row(
+            children: [
+              const Icon(Icons.edit_rounded, color: AppColors.teal),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(s.isArabic ? 'تعديل المستخدم' : 'Edit user',
+                    style: const TextStyle(
+                        color: AppColors.teal, fontWeight: FontWeight.w900)),
               ),
-            );
-          }
-
-          return AlertDialog(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22)),
-            title: Row(
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.edit_rounded, color: AppColors.teal),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                      s.isArabic ? 'تعديل المستخدم' : 'Edit user',
-                      style: const TextStyle(
-                          color: AppColors.teal,
-                          fontWeight: FontWeight.w900)),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _fld(context, nameC,
-                      s.isArabic ? 'اسم المستخدم' : 'Name',
-                      Icons.person_rounded, AppColors.orange),
-                  const SizedBox(height: 10),
-                  _fld(context, phoneC,
-                      s.isArabic ? 'رقم الهاتف' : 'Phone',
-                      Icons.phone_rounded, AppColors.teal,
-                      kt: TextInputType.phone),
-                  const SizedBox(height: 10),
-                  _fld(context, passC,
-                      s.isArabic ? 'كلمة السر' : 'Password',
-                      Icons.lock_rounded, const Color(0xFF9B59B6),
-                      obscure: true),
-                  const SizedBox(height: 14),
-                  // ✅ نوع الحساب: مدير مخفي حتى ضغط مطول على وكيل
+                _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
+                    Icons.person_rounded, AppColors.orange, dark),
+                const SizedBox(height: 10),
+                _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
+                    Icons.phone_rounded, AppColors.teal, dark,
+                    kt: TextInputType.phone),
+                const SizedBox(height: 10),
+                _fld(passC,
+                    s.isArabic
+                        ? 'كلمة سر جديدة (اختياري)'
+                        : 'New password (optional)',
+                    Icons.lock_rounded, const Color(0xFF9B59B6), dark,
+                    obscure: true),
+                const SizedBox(height: 14),
+                if (isCtrl) ...[
                   Align(
                     alignment: AlignmentDirectional.centerStart,
-                    child: Text(
-                        s.isArabic ? 'نوع الحساب:' : 'Account type:',
+                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
                         style: TextStyle(
-                            color: Theme.of(context).brightness ==
-                                    Brightness.dark
+                            color: dark
                                 ? Colors.grey.shade300
-                                : Colors.grey.shade700,
+                                : Colors.grey.shade600,
                             fontWeight: FontWeight.w800,
                             fontSize: 12)),
                   ),
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Wrap(
-                      children: [
-                        roleChip(s.isArabic ? 'عميل' : 'Client', 'client',
-                            AppColors.teal),
-                        roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
-                            AppColors.orange),
-                        roleChip(
+                  Wrap(
+                    children: [
+                      _chip(setSt, 'ctrl', role,
+                          s.isArabic ? 'متحكم' : 'Controller',
+                          const Color(0xFFB71C1C)),
+                      _chip(setSt, 'admin', role,
+                          s.isArabic ? 'مدير' : 'Admin', Colors.red),
+                      _chip(setSt, 'agent', role,
                           s.isArabic ? 'وكيل' : 'Agent',
-                          'agent',
-                          const Color(0xFF9B59B6),
-                          onLongPress: () {
-                            if (!adminUnlocked) {
-                              setSt(() => adminUnlocked = true);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content: Text(s.isArabic
-                                          ? '🔓 تم فتح خيار المدير'
-                                          : 'Admin option unlocked')));
-                            }
-                          },
-                        ),
-                        if (adminUnlocked || role == 'admin')
-                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
-                              Colors.red),
-                      ],
-                    ),
+                          const Color(0xFF9B59B6)),
+                      _chip(setSt, 'tech', role,
+                          s.isArabic ? 'صباغ' : 'Painter', AppColors.orange),
+                      _chip(setSt, 'client', role,
+                          s.isArabic ? 'عميل' : 'Client', AppColors.teal),
+                    ],
                   ),
                 ],
-              ),
+              ],
             ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.teal,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {
-                  if (nameC.text.trim().isEmpty ||
-                      phoneC.text.trim().isEmpty ||
-                      passC.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(s.isArabic
-                            ? 'يرجى ملء جميع الحقول'
-                            : 'Fill all fields'),
-                        backgroundColor: Colors.red));
-                    return;
-                  }
-                  Navigator.pop(ctx, true);
-                },
-                child: Text(s.isArabic ? 'حفظ' : 'Save'),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teal,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-            ],
-          );
-        },
+              onPressed: () {
+                if (nameC.text.trim().isEmpty ||
+                    phoneC.text.trim().isEmpty) {
+                  _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill fields',
+                      Colors.red, Icons.warning_rounded);
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: Text(s.isArabic ? 'حفظ' : 'Save'),
+            ),
+          ],
+        ),
       ),
     );
 
     if (ok != true) return false;
     try {
-      await OrdersService.patchUser(u.id, {
+      final fields = <String, dynamic>{
         'name': nameC.text.trim(),
         'phone': phoneC.text.trim(),
-        'password': passC.text.trim(),
-        'role': role,
-      });
+      };
+      if (isCtrl) fields['role'] = role;
+      await userRepo.updateUser(u.id, fields);
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  static Widget _fld(BuildContext context, TextEditingController c,
-      String hint, IconData icon, Color ic,
+  static Widget _chip(StateSetter setSt, String value, String current,
+      String label, Color c) {
+    final active = current == value;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+      child: InkWell(
+        onTap: () => setSt(() => current = value),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: active
+                ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
+                : null,
+            color: active ? null : c.withAlpha(18),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: c.withAlpha(active ? 180 : 80)),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: active ? Colors.white : c,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  static Widget _fld(TextEditingController c, String hint, IconData icon,
+      Color ic, bool dark,
       {bool obscure = false, TextInputType? kt}) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: c,
       obscureText: obscure,
@@ -205,89 +474,147 @@ class EditUserDialog {
   }
 }
 
-// ======================================================
-// ➕ صفحة إنشاء حساب (مع نوع الحساب)
-// ======================================================
-
-class CreateAccountPage extends StatefulWidget {
-  const CreateAccountPage({super.key});
-  @override
-  State<CreateAccountPage> createState() => _CreateAccountPageState();
-}
-
-class _CreateAccountPageState extends State<CreateAccountPage> {
-  final _name = TextEditingController();
-  final _phone = TextEditingController();
-  final _pass = TextEditingController();
-  String? _housing;
-  String? _transport;
-  String _role = 'client';
-  bool _adminUnlocked = false;
-  bool _busy = false;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _phone.dispose();
-    _pass.dispose();
-    super.dispose();
-  }
-
-  Future<void> _confirm() async {
+class _CreateDialog {
+  static Future<bool> show(BuildContext context) async {
     final s = context.read<AppSettings>();
-    if (_name.text.trim().isEmpty ||
-        _phone.text.trim().isEmpty ||
-        _pass.text.trim().isEmpty ||
-        _housing == null ||
-        _transport == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              s.isArabic ? 'يرجى ملء جميع الحقول والخيارات' : 'Fill all fields'),
-          backgroundColor: Colors.red));
-      return;
-    }
-    setState(() => _busy = true);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final nameC = TextEditingController();
+    final phoneC = TextEditingController();
+    final passC = TextEditingController();
+    String role = 'client';
+    final isCtrl = s.isController;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Row(
+            children: [
+              const Icon(Icons.person_add_rounded, color: AppColors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(s.isArabic ? 'حساب جديد' : 'New account',
+                    style: const TextStyle(
+                        color: AppColors.orange, fontWeight: FontWeight.w900)),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
+                    Icons.person_rounded, AppColors.orange, dark),
+                const SizedBox(height: 10),
+                _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
+                    Icons.phone_rounded, AppColors.teal, dark,
+                    kt: TextInputType.phone),
+                const SizedBox(height: 10),
+                _fld(passC,
+                    s.isArabic
+                        ? 'كلمة السر (6 أحرف على الأقل)'
+                        : 'Password (min 6)',
+                    Icons.lock_rounded, const Color(0xFF9B59B6), dark,
+                    obscure: true),
+                if (isCtrl) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
+                        style: TextStyle(
+                            color: dark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade600,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12)),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    children: [
+                      _chip(setSt, 'ctrl', role,
+                          s.isArabic ? 'متحكم' : 'Controller',
+                          const Color(0xFFB71C1C)),
+                      _chip(setSt, 'admin', role,
+                          s.isArabic ? 'مدير' : 'Admin', Colors.red),
+                      _chip(setSt, 'agent', role,
+                          s.isArabic ? 'وكيل' : 'Agent',
+                          const Color(0xFF9B59B6)),
+                      _chip(setSt, 'tech', role,
+                          s.isArabic ? 'صباغ' : 'Painter', AppColors.orange),
+                      _chip(setSt, 'client', role,
+                          s.isArabic ? 'عميل' : 'Client', AppColors.teal),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.orange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                if (nameC.text.trim().isEmpty ||
+                    phoneC.text.trim().isEmpty ||
+                    passC.text.trim().isEmpty) {
+                  _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill all',
+                      Colors.red, Icons.warning_rounded);
+                  return;
+                }
+                if (passC.text.length < 6) {
+                  _snack(context,
+                      s.isArabic
+                          ? 'كلمة السر 6 أحرف على الأقل'
+                          : 'Password min 6 chars',
+                      Colors.red, Icons.warning_rounded);
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: Text(s.isArabic ? 'إنشاء' : 'Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (ok != true) return false;
     try {
-      await OrdersService.addUserRaw({
-        'id': 'u_${DateTime.now().millisecondsSinceEpoch}',
-        'name': _name.text.trim(),
-        'phone': _phone.text.trim(),
-        'password': _pass.text.trim(),
-        'role': _role,
-        'points': 0,
-        'stored': 0,
-        'housing': _housing,
-        'transport': _transport,
-      });
-      if (mounted) Navigator.pop(context, true);
+      await userRepo.createUser(
+          phoneC.text.trim(), nameC.text.trim(), passC.text, role);
+      return true;
     } catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('فشل: $e')));
-      }
+      _snack(context, '$e', Colors.red, Icons.error_rounded);
+      return false;
     }
   }
 
-  Widget _opt(String label, String value, String? current, Color c,
-      ValueChanged<String> onPick, bool dark,
-      {VoidCallback? onLongPress}) {
+  static Widget _chip(StateSetter setSt, String value, String current,
+      String label, Color c) {
     final active = current == value;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
       child: InkWell(
-        onTap: () => onPick(value),
-        onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        onTap: () => setSt(() => current = value),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             gradient: active
                 ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
                 : null,
             color: active ? null : c.withAlpha(18),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: c.withAlpha(active ? 180 : 80)),
           ),
           child: Text(label,
@@ -300,8 +627,9 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     );
   }
 
-  Widget _fld(TextEditingController c, String hint, IconData icon, Color ic,
-      {bool obscure = false, TextInputType? kt, bool dark = false}) {
+  static Widget _fld(TextEditingController c, String hint, IconData icon,
+      Color ic, bool dark,
+      {bool obscure = false, TextInputType? kt}) {
     return TextField(
       controller: c,
       obscureText: obscure,
@@ -315,174 +643,25 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         filled: true,
         fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }
+}
 
-  Widget _title(String t, IconData icon, Color c) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: <Color>[c.withAlpha(30), c.withAlpha(8)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: c, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(t,
-                style: TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w900, color: c)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<AppSettings>();
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      backgroundColor:
-          dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(s.isArabic ? 'إنشاء حساب' : 'Create account',
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: dark ? Colors.white : AppColors.ink)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                  child: _fld(_name,
-                      s.isArabic ? 'اسم المستخدم' : 'Name',
-                      Icons.person_rounded, AppColors.orange,
-                      dark: dark)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _fld(_phone,
-                      s.isArabic ? 'رقم الهاتف' : 'Phone',
-                      Icons.phone_rounded, AppColors.teal,
-                      kt: TextInputType.phone, dark: dark)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _fld(_pass, s.isArabic ? 'كلمة السر' : 'Password',
-              Icons.lock_rounded, const Color(0xFF9B59B6),
-              obscure: true, dark: dark),
-          const SizedBox(height: 20),
-          _title(s.isArabic ? 'نوع الحساب' : 'Account type',
-              Icons.badge_rounded, const Color(0xFF9B59B6)),
-          Wrap(
-            children: [
-              _opt(s.isArabic ? 'عميل' : 'Client', 'client', _role,
-                  AppColors.teal, (v) => setState(() => _role = v), dark),
-              _opt(s.isArabic ? 'صباغ' : 'Painter', 'tech', _role,
-                  AppColors.orange, (v) => setState(() => _role = v), dark),
-              _opt(s.isArabic ? 'وكيل' : 'Agent', 'agent', _role,
-                  const Color(0xFF9B59B6), (v) => setState(() => _role = v),
-                  dark,
-                  onLongPress: () {
-                    if (!_adminUnlocked) {
-                      setState(() => _adminUnlocked = true);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text(s.isArabic
-                              ? '🔓 تم فتح خيار المدير'
-                              : 'Admin option unlocked')));
-                    }
-                  }),
-              if (_adminUnlocked)
-                _opt(s.isArabic ? 'مدير' : 'Admin', 'admin', _role,
-                    Colors.red, (v) => setState(() => _role = v), dark),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _title(s.isArabic ? 'نوع السكن' : 'Housing type',
-              Icons.home_rounded, AppColors.orange),
-          Wrap(
-            children: [
-              _opt(s.isArabic ? 'إيجار' : 'Rent', 'rent', _housing,
-                  AppColors.orange,
-                  (v) => setState(() => _housing = v), dark),
-              _opt(s.isArabic ? 'ملك' : 'Owned', 'own', _housing,
-                  AppColors.teal, (v) => setState(() => _housing = v), dark),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _title(s.isArabic ? 'وسائل النقل' : 'Transport',
-              Icons.directions_bus_rounded, AppColors.teal),
-          Wrap(
-            children: [
-              _opt(s.isArabic ? 'دراجة' : 'Bike', 'bike', _transport,
-                  AppColors.teal,
-                  (v) => setState(() => _transport = v), dark),
-              _opt(s.isArabic ? 'ستوتة' : 'Tuk-tuk', 'tuk', _transport,
-                  AppColors.orange,
-                  (v) => setState(() => _transport = v), dark),
-              _opt(s.isArabic ? 'سيارة' : 'Car', 'car', _transport,
-                  const Color(0xFF9B59B6),
-                  (v) => setState(() => _transport = v), dark),
-              _opt(s.isArabic ? 'لا أملك' : 'None', 'none', _transport,
-                  Colors.red, (v) => setState(() => _transport = v), dark),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Container(
-            decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: <Color>[
-                  Color(0xFFFF8C00),
-                  Color(0xFFF26B0F),
-                ]),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                      color: AppColors.orange.withAlpha(80),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6)),
-                ]),
-            child: SizedBox(
-              height: 54,
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    foregroundColor: Colors.white),
-                onPressed: _busy ? null : _confirm,
-                child: _busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : Text(
-                        s.isArabic ? 'تأكيد إنشاء الحساب' : 'Confirm create',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-        ],
-      ),
-    );
-  }
+void _snack(BuildContext c, String msg, Color color, IconData ic) {
+  ScaffoldMessenger.of(c).showSnackBar(SnackBar(
+    content: Row(children: [
+      Icon(ic, color: Colors.white, size: 18),
+      const SizedBox(width: 8),
+      Expanded(
+          child: Text(msg,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800))),
+    ]),
+    backgroundColor: color,
+    behavior: SnackBarBehavior.floating,
+    duration: const Duration(seconds: 2),
+  ));
 }
