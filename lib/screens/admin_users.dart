@@ -1,401 +1,488 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
-import '../core/guest_guard.dart';
+import '../core/orders_service.dart';
+import '../core/store_service.dart';
 import '../core/theme.dart';
-import 'admin_users.dart';
-import 'home_screen.dart';
-import 'media_admin_screen.dart';
-import 'products_screen.dart';
-import 'profile_screen.dart';
-import 'simple_screens.dart';
 
-const double _kBarH = 62;
-const double _kStackH = 84;
-const double _kCircle = 54;
-const double _kR = _kBarH / 2;
-const double _kNotchW = 26;
-const double _kNotchS = 6;
-const double _kNotchD = 38;
+// ======================================================
+// ✏️ نافذة تعديل مستخدم
+// ======================================================
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
-  @override
-  State<MainScreen> createState() => _MainScreenState();
+class EditUserDialog {
+  static Future<bool> show(BuildContext context, User u) async {
+    final s = context.read<AppSettings>();
+    final nameC = TextEditingController(text: u.name);
+    final phoneC = TextEditingController(text: u.phone);
+    final passC = TextEditingController(text: u.password ?? '');
+    String role = u.role;
+    bool adminUnlocked = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          // ✅ شارة دور داخل نافذة التعديل
+          Widget roleChip(String label, String value, Color c,
+              {VoidCallback? onLongPress}) {
+            final active = role == value;
+            return Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+              child: InkWell(
+                onTap: () => setSt(() => role = value),
+                onLongPress: onLongPress,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    gradient: active
+                        ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
+                        : null,
+                    color: active ? null : c.withAlpha(18),
+                    borderRadius: BorderRadius.circular(14),
+                    border:
+                        Border.all(color: c.withAlpha(active ? 180 : 80)),
+                  ),
+                  child: Text(label,
+                      style: TextStyle(
+                          color: active ? Colors.white : c,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12)),
+                ),
+              ),
+            );
+          }
+
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22)),
+            title: Row(
+              children: [
+                const Icon(Icons.edit_rounded, color: AppColors.teal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                      s.isArabic ? 'تعديل المستخدم' : 'Edit user',
+                      style: const TextStyle(
+                          color: AppColors.teal,
+                          fontWeight: FontWeight.w900)),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _fld(context, nameC,
+                      s.isArabic ? 'اسم المستخدم' : 'Name',
+                      Icons.person_rounded, AppColors.orange),
+                  const SizedBox(height: 10),
+                  _fld(context, phoneC,
+                      s.isArabic ? 'رقم الهاتف' : 'Phone',
+                      Icons.phone_rounded, AppColors.teal,
+                      kt: TextInputType.phone),
+                  const SizedBox(height: 10),
+                  _fld(context, passC,
+                      s.isArabic ? 'كلمة السر' : 'Password',
+                      Icons.lock_rounded, const Color(0xFF9B59B6),
+                      obscure: true),
+                  const SizedBox(height: 14),
+                  // ✅ نوع الحساب: مدير مخفي حتى ضغط مطول على وكيل
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                        s.isArabic ? 'نوع الحساب:' : 'Account type:',
+                        style: TextStyle(
+                            color: Theme.of(context).brightness ==
+                                    Brightness.dark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade700,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12)),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Wrap(
+                      children: [
+                        roleChip(s.isArabic ? 'عميل' : 'Client', 'client',
+                            AppColors.teal),
+                        roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
+                            AppColors.orange),
+                        roleChip(
+                          s.isArabic ? 'وكيل' : 'Agent',
+                          'agent',
+                          const Color(0xFF9B59B6),
+                          onLongPress: () {
+                            if (!adminUnlocked) {
+                              setSt(() => adminUnlocked = true);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(s.isArabic
+                                          ? '🔓 تم فتح خيار المدير'
+                                          : 'Admin option unlocked')));
+                            }
+                          },
+                        ),
+                        if (adminUnlocked || role == 'admin')
+                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
+                              Colors.red),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.teal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  if (nameC.text.trim().isEmpty ||
+                      phoneC.text.trim().isEmpty ||
+                      passC.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(s.isArabic
+                            ? 'يرجى ملء جميع الحقول'
+                            : 'Fill all fields'),
+                        backgroundColor: Colors.red));
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                child: Text(s.isArabic ? 'حفظ' : 'Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (ok != true) return false;
+    try {
+      await OrdersService.patchUser(u.id, {
+        'name': nameC.text.trim(),
+        'phone': phoneC.text.trim(),
+        'password': passC.text.trim(),
+        'role': role,
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Widget _fld(BuildContext context, TextEditingController c,
+      String hint, IconData icon, Color ic,
+      {bool obscure = false, TextInputType? kt}) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return TextField(
+      controller: c,
+      obscureText: obscure,
+      keyboardType: kt,
+      style: TextStyle(color: dark ? Colors.white : AppColors.ink),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+            color: dark ? Colors.grey.shade500 : Colors.grey.shade400),
+        prefixIcon: Icon(icon, color: ic, size: 20),
+        filled: true,
+        fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+      ),
+    );
+  }
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _idx = 0;
+// ======================================================
+// ➕ صفحة إنشاء حساب (مع نوع الحساب)
+// ======================================================
 
-  void _onTab(int i, bool isGuest, bool isArabic) {
-    if (isGuest && i == 2) {
-      GuestGuard.lock(
-        context,
-        title: isArabic ? 'المحفظة مقفلة 🔒' : 'Wallet locked 🔒',
-        message: isArabic
-            ? 'سجل دخولك أولاً واشتري مواد فاوري لتربح النقاط'
-            : 'Sign in first and buy Fawori products to earn points',
-        onLogin: () => setState(() => _idx = 4),
-        loginLabel: isArabic ? 'تسجيل الدخول' : 'Sign in',
-      );
+class CreateAccountPage extends StatefulWidget {
+  const CreateAccountPage({super.key});
+  @override
+  State<CreateAccountPage> createState() => _CreateAccountPageState();
+}
+
+class _CreateAccountPageState extends State<CreateAccountPage> {
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _pass = TextEditingController();
+  String? _housing;
+  String? _transport;
+  String _role = 'client';
+  bool _adminUnlocked = false;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    final s = context.read<AppSettings>();
+    if (_name.text.trim().isEmpty ||
+        _phone.text.trim().isEmpty ||
+        _pass.text.trim().isEmpty ||
+        _housing == null ||
+        _transport == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              s.isArabic ? 'يرجى ملء جميع الحقول والخيارات' : 'Fill all fields'),
+          backgroundColor: Colors.red));
       return;
     }
-    setState(() => _idx = i);
+    setState(() => _busy = true);
+    try {
+      await OrdersService.addUserRaw({
+        'id': 'u_${DateTime.now().millisecondsSinceEpoch}',
+        'name': _name.text.trim(),
+        'phone': _phone.text.trim(),
+        'password': _pass.text.trim(),
+        'role': _role,
+        'points': 0,
+        'stored': 0,
+        'housing': _housing,
+        'transport': _transport,
+      });
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('فشل: $e')));
+      }
+    }
+  }
+
+  Widget _opt(String label, String value, String? current, Color c,
+      ValueChanged<String> onPick, bool dark,
+      {VoidCallback? onLongPress}) {
+    final active = current == value;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+      child: InkWell(
+        onTap: () => onPick(value),
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: active
+                ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
+                : null,
+            color: active ? null : c.withAlpha(18),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: c.withAlpha(active ? 180 : 80)),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: active ? Colors.white : c,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _fld(TextEditingController c, String hint, IconData icon, Color ic,
+      {bool obscure = false, TextInputType? kt, bool dark = false}) {
+    return TextField(
+      controller: c,
+      obscureText: obscure,
+      keyboardType: kt,
+      style: TextStyle(color: dark ? Colors.white : AppColors.ink),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+            color: dark ? Colors.grey.shade500 : Colors.grey.shade400),
+        prefixIcon: Icon(icon, color: ic, size: 20),
+        filled: true,
+        fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+    );
+  }
+
+  Widget _title(String t, IconData icon, Color c) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: <Color>[c.withAlpha(30), c.withAlpha(8)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: c, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(t,
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w900, color: c)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppSettings>();
-    final bool isAdmin = s.isAdmin || s.isImageAdmin;
-    final bool isController = s.isController;
     final bool dark = Theme.of(context).brightness == Brightness.dark;
 
-    final screens = <Widget>[
-      HomeScreen(onOpenProducts: () => setState(() => _idx = 1)),
-      const ProductsScreen(),
-      const WalletScreen(),
-      isController
-          ? const AdminCodeView()
-          : (isAdmin ? const AdminUsersPage() : const FavoritesScreen()),
-      isAdmin ? const MediaAdminScreen() : const ProfileScreen(),
-    ];
-
-    final icons = <IconData>[
-      Icons.home_rounded,
-      Icons.grid_view_rounded,
-      Icons.account_balance_wallet_rounded,
-      isController
-          ? Icons.code_rounded
-          : (isAdmin
-              ? Icons.person_add_alt_1_rounded
-              : Icons.favorite_rounded),
-      isAdmin ? Icons.campaign_rounded : Icons.person_rounded,
-    ];
-    final labels = <String>[
-      s.isArabic ? 'الرئيسية' : 'Home',
-      s.isArabic ? 'المنتجات' : 'Products',
-      s.isArabic
-          ? (isAdmin ? 'النقاط والرصيد' : 'المحفظة')
-          : (isAdmin ? 'Points' : 'Wallet'),
-      s.isArabic
-          ? (isController
-              ? 'الإدارة'
-              : (isAdmin ? 'المستخدمون' : 'المفضلة'))
-          : (isController
-              ? 'Admin'
-              : (isAdmin ? 'Users' : 'Favorites')),
-      s.isArabic
-          ? (isAdmin ? 'إدارة الإعلام' : 'ملف شخصي')
-          : (isAdmin ? 'Media' : 'Profile'),
-    ];
-
     return Scaffold(
-      extendBody: true,
-      body: IndexedStack(index: _idx, children: screens),
-      bottomNavigationBar: _FancyBottomNav(
-        index: _idx,
-        dark: dark,
-        icons: icons,
-        labels: labels,
-        onTap: (i) => _onTab(i, s.isGuest, s.isArabic),
+      backgroundColor:
+          dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(s.isArabic ? 'إنشاء حساب' : 'Create account',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: dark ? Colors.white : AppColors.ink)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                  child: _fld(_name,
+                      s.isArabic ? 'اسم المستخدم' : 'Name',
+                      Icons.person_rounded, AppColors.orange,
+                      dark: dark)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _fld(_phone,
+                      s.isArabic ? 'رقم الهاتف' : 'Phone',
+                      Icons.phone_rounded, AppColors.teal,
+                      kt: TextInputType.phone, dark: dark)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _fld(_pass, s.isArabic ? 'كلمة السر' : 'Password',
+              Icons.lock_rounded, const Color(0xFF9B59B6),
+              obscure: true, dark: dark),
+          const SizedBox(height: 20),
+          _title(s.isArabic ? 'نوع الحساب' : 'Account type',
+              Icons.badge_rounded, const Color(0xFF9B59B6)),
+          Wrap(
+            children: [
+              _opt(s.isArabic ? 'عميل' : 'Client', 'client', _role,
+                  AppColors.teal, (v) => setState(() => _role = v), dark),
+              _opt(s.isArabic ? 'صباغ' : 'Painter', 'tech', _role,
+                  AppColors.orange, (v) => setState(() => _role = v), dark),
+              _opt(s.isArabic ? 'وكيل' : 'Agent', 'agent', _role,
+                  const Color(0xFF9B59B6), (v) => setState(() => _role = v),
+                  dark,
+                  onLongPress: () {
+                    if (!_adminUnlocked) {
+                      setState(() => _adminUnlocked = true);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(s.isArabic
+                              ? '🔓 تم فتح خيار المدير'
+                              : 'Admin option unlocked')));
+                    }
+                  }),
+              if (_adminUnlocked)
+                _opt(s.isArabic ? 'مدير' : 'Admin', 'admin', _role,
+                    Colors.red, (v) => setState(() => _role = v), dark),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _title(s.isArabic ? 'نوع السكن' : 'Housing type',
+              Icons.home_rounded, AppColors.orange),
+          Wrap(
+            children: [
+              _opt(s.isArabic ? 'إيجار' : 'Rent', 'rent', _housing,
+                  AppColors.orange,
+                  (v) => setState(() => _housing = v), dark),
+              _opt(s.isArabic ? 'ملك' : 'Owned', 'own', _housing,
+                  AppColors.teal, (v) => setState(() => _housing = v), dark),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _title(s.isArabic ? 'وسائل النقل' : 'Transport',
+              Icons.directions_bus_rounded, AppColors.teal),
+          Wrap(
+            children: [
+              _opt(s.isArabic ? 'دراجة' : 'Bike', 'bike', _transport,
+                  AppColors.teal,
+                  (v) => setState(() => _transport = v), dark),
+              _opt(s.isArabic ? 'ستوتة' : 'Tuk-tuk', 'tuk', _transport,
+                  AppColors.orange,
+                  (v) => setState(() => _transport = v), dark),
+              _opt(s.isArabic ? 'سيارة' : 'Car', 'car', _transport,
+                  const Color(0xFF9B59B6),
+                  (v) => setState(() => _transport = v), dark),
+              _opt(s.isArabic ? 'لا أملك' : 'None', 'none', _transport,
+                  Colors.red, (v) => setState(() => _transport = v), dark),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(
+            decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: <Color>[
+                  Color(0xFFFF8C00),
+                  Color(0xFFF26B0F),
+                ]),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                      color: AppColors.orange.withAlpha(80),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6)),
+                ]),
+            child: SizedBox(
+              height: 54,
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    foregroundColor: Colors.white),
+                onPressed: _busy ? null : _confirm,
+                child: _busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text(
+                        s.isArabic ? 'تأكيد إنشاء الحساب' : 'Confirm create',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w900, fontSize: 16)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+        ],
       ),
     );
   }
-}
-
-class _FancyBottomNav extends StatefulWidget {
-  final int index;
-  final bool dark;
-  final List<IconData> icons;
-  final List<String> labels;
-  final ValueChanged<int> onTap;
-  const _FancyBottomNav({
-    required this.index,
-    required this.dark,
-    required this.icons,
-    required this.labels,
-    required this.onTap,
-  });
-  @override
-  State<_FancyBottomNav> createState() => _FancyBottomNavState();
-}
-
-class _FancyBottomNavState extends State<_FancyBottomNav>
-    with SingleTickerProviderStateMixin {
-  late int _prev;
-  bool _press = false;
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _prev = widget.index;
-    _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 430));
-    _c.value = 1;
-  }
-
-  @override
-  void didUpdateWidget(covariant _FancyBottomNav old) {
-    super.didUpdateWidget(old);
-    if (old.index != widget.index) {
-      _prev = old.index;
-      _c.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = widget.dark;
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-          18, 0, 18, MediaQuery.of(context).padding.bottom + 10),
-      child: LayoutBuilder(
-        builder: (context, cons) {
-          final W = cons.maxWidth;
-          const double pad = 14;
-          final slotInner = (W - pad * 2) / 5;
-          double centerOf(int i) {
-            final c = pad + slotInner * i + slotInner / 2;
-            return rtl ? W - c : c;
-          }
-
-          return AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) {
-              final t = Curves.easeOutBack.transform(_c.value);
-              final cx = centerOf(_prev) +
-                  (centerOf(widget.index) - centerOf(_prev)) * t;
-              return SizedBox(
-                height: _kStackH,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: CustomPaint(
-                        size: Size(W, _kBarH),
-                        painter: _BarPainter(cx: cx, dark: dark),
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 8,
-                      child: Center(
-                        child: Container(
-                          width: 56,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: dark
-                                ? Colors.white.withAlpha(28)
-                                : Colors.black.withAlpha(22),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: pad,
-                      right: pad,
-                      bottom: 0,
-                      child: SizedBox(
-                        height: _kBarH,
-                        child: Row(
-                          children: List.generate(5, (i) {
-                            final active = widget.index == i;
-                            return Expanded(
-                              child: _NavInk(
-                                onTap: () => widget.onTap(i),
-                                tooltip: widget.labels[i],
-                                child: AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 200),
-                                  opacity: active ? 0 : 1,
-                                  child: Icon(
-                                    widget.icons[i],
-                                    size: 23,
-                                    color: dark
-                                        ? Colors.grey.shade300
-                                        : const Color(0xFF3F3F4A),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: cx - _kCircle / 2,
-                      top: _kStackH - _kBarH - _kCircle / 2 + 8,
-                      child: GestureDetector(
-                        onTapDown: (_) => setState(() => _press = true),
-                        onTapUp: (_) => setState(() => _press = false),
-                        onTapCancel: () => setState(() => _press = false),
-                        onTap: () => widget.onTap(widget.index),
-                        child: Tooltip(
-                          message: widget.labels[widget.index],
-                          child: AnimatedScale(
-                            scale: (_press ? 0.9 : 1) *
-                                (1 +
-                                    0.14 *
-                                        math.sin(math.pi *
-                                            _c.value.clamp(0.0, 1.0))),
-                            duration: const Duration(milliseconds: 130),
-                            curve: Curves.easeOut,
-                            child: Container(
-                              width: _kCircle,
-                              height: _kCircle,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: <Color>[
-                                    Color(0xFFFFA500),
-                                    Color(0xFFF26B0F),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFF26B0F)
-                                        .withAlpha(dark ? 150 : 120),
-                                    blurRadius: 24,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                  BoxShadow(
-                                    color: const Color(0xFFFFA500)
-                                        .withAlpha(70),
-                                    blurRadius: 36,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
-                                child: Icon(
-                                  widget.icons[widget.index],
-                                  key: ValueKey<int>(widget.index),
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _NavInk extends StatelessWidget {
-  final VoidCallback onTap;
-  final String tooltip;
-  final Widget child;
-  const _NavInk(
-      {required this.onTap, required this.tooltip, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(_kR),
-        child: SizedBox(
-          height: _kBarH,
-          child: Center(child: child),
-        ),
-      ),
-    );
-  }
-}
-
-class _BarPainter extends CustomPainter {
-  final double cx;
-  final bool dark;
-  _BarPainter({required this.cx, required this.dark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final W = size.width;
-    const top = 0.0;
-    final lx = cx - _kNotchW - _kNotchS;
-    final rx = cx + _kNotchW + _kNotchS;
-
-    double capYLeft(double x) {
-      if (x >= _kR) return top;
-      final dx = _kR - x;
-      if (dx >= _kR) return top + _kR;
-      return top + _kR - math.sqrt(_kR * _kR - dx * dx);
-    }
-
-    double capYRight(double x) {
-      if (x <= W - _kR) return top;
-      final dx = x - (W - _kR);
-      if (dx >= _kR) return top + _kR;
-      return top + _kR - math.sqrt(_kR * _kR - dx * dx);
-    }
-
-    final ly = capYLeft(lx);
-    final ry = capYRight(rx);
-
-    final p = Path()..moveTo(0, top + _kR);
-    if (lx >= _kR) {
-      p.quadraticBezierTo(0, top, _kR, top);
-      p.lineTo(lx, top);
-    } else {
-      p.quadraticBezierTo(0, ly, lx, ly);
-    }
-    p.quadraticBezierTo(
-        cx - _kNotchW + 4, ly + 4, cx - _kNotchW + 6, _kNotchD * 0.5);
-    p.quadraticBezierTo(cx - _kNotchW * 0.4, _kNotchD, cx, _kNotchD);
-    p.quadraticBezierTo(cx + _kNotchW * 0.4, _kNotchD, cx + _kNotchW - 6,
-        _kNotchD * 0.5);
-    p.quadraticBezierTo(cx + _kNotchW - 4, ry + 4, rx, ry);
-    if (rx <= W - _kR) {
-      p.lineTo(W - _kR, top);
-      p.quadraticBezierTo(W, top, W, top + _kR);
-    } else {
-      p.quadraticBezierTo(W, ry, W, top + _kR);
-    }
-    p.quadraticBezierTo(W, top + _kBarH, W - _kR, top + _kBarH);
-    p.lineTo(_kR, top + _kBarH);
-    p.quadraticBezierTo(0, top + _kBarH, 0, top + _kR);
-    p.close();
-
-    canvas.drawShadow(p, Colors.black.withAlpha(90), 14, true);
-    final paint = Paint()
-      ..shader = LinearGradient(
-        colors: dark
-            ? const <Color>[Color(0xFF24242E), Color(0xFF191920)]
-            : const <Color>[Colors.white, Color(0xFFF4F4F8)],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTWH(0, top, W, _kBarH));
-    canvas.drawPath(p, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BarPainter old) =>
-      old.cx != cx || old.dark != dark;
 }
