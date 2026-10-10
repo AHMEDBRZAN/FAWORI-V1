@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import '../core/repositories/user_repo.dart';
+import '../core/store_service.dart';
 import '../core/theme.dart';
 
 class AdminUsersPage extends StatefulWidget {
@@ -304,108 +305,135 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   }
 }
 
+// ======================================================
+// ✏️ نافذة تعديل مستخدم
+// ======================================================
+
 class _EditDialog {
   static Future<bool> show(BuildContext context, AppUser u) async {
     final s = context.read<AppSettings>();
     final dark = Theme.of(context).brightness == Brightness.dark;
     final nameC = TextEditingController(text: u.name);
     final phoneC = TextEditingController(text: u.phone);
-    final passC = TextEditingController();
     String role = u.role;
     final isCtrl = s.isController;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Row(
-            children: [
-              const Icon(Icons.edit_rounded, color: AppColors.teal),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(s.isArabic ? 'تعديل المستخدم' : 'Edit user',
-                    style: const TextStyle(
-                        color: AppColors.teal, fontWeight: FontWeight.w900)),
+        builder: (ctx, setSt) {
+          Widget roleChip(String label, String value, Color c) {
+            final active = role == value;
+            return Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+              child: InkWell(
+                onTap: () => setSt(() => role = value),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    gradient: active
+                        ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
+                        : null,
+                    color: active ? null : c.withAlpha(18),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: c.withAlpha(active ? 180 : 80)),
+                  ),
+                  child: Text(label,
+                      style: TextStyle(
+                          color: active ? Colors.white : c,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12)),
+                ),
               ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            );
+          }
+
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22)),
+            title: Row(
               children: [
-                _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
-                    Icons.person_rounded, AppColors.orange, dark),
-                const SizedBox(height: 10),
-                _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
-                    Icons.phone_rounded, AppColors.teal, dark,
-                    kt: TextInputType.phone),
-                const SizedBox(height: 10),
-                _fld(passC,
-                    s.isArabic
-                        ? 'كلمة سر جديدة (اختياري)'
-                        : 'New password (optional)',
-                    Icons.lock_rounded, const Color(0xFF9B59B6), dark,
-                    obscure: true),
-                const SizedBox(height: 14),
-                if (isCtrl) ...[
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
-                        style: TextStyle(
-                            color: dark
-                                ? Colors.grey.shade300
-                                : Colors.grey.shade600,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12)),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    children: [
-                      _chip(setSt, 'ctrl', role,
-                          s.isArabic ? 'متحكم' : 'Controller',
-                          const Color(0xFFB71C1C)),
-                      _chip(setSt, 'admin', role,
-                          s.isArabic ? 'مدير' : 'Admin', Colors.red),
-                      _chip(setSt, 'agent', role,
-                          s.isArabic ? 'وكيل' : 'Agent',
-                          const Color(0xFF9B59B6)),
-                      _chip(setSt, 'tech', role,
-                          s.isArabic ? 'صباغ' : 'Painter', AppColors.orange),
-                      _chip(setSt, 'client', role,
-                          s.isArabic ? 'عميل' : 'Client', AppColors.teal),
-                    ],
-                  ),
-                ],
+                const Icon(Icons.edit_rounded, color: AppColors.teal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(s.isArabic ? 'تعديل المستخدم' : 'Edit user',
+                      style: const TextStyle(
+                          color: AppColors.teal, fontWeight: FontWeight.w900)),
+                ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
+                      Icons.person_rounded, AppColors.orange, dark),
+                  const SizedBox(height: 10),
+                  _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
+                      Icons.phone_rounded, AppColors.teal, dark,
+                      kt: TextInputType.phone),
+                  const SizedBox(height: 14),
+                  if (isCtrl) ...[
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(s.isArabic ? 'الدور:' : 'Role:',
+                          style: TextStyle(
+                              color: dark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade600,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12)),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Wrap(
+                        children: [
+                          roleChip(s.isArabic ? 'متحكم' : 'Controller', 'ctrl',
+                              const Color(0xFFB71C1C)),
+                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
+                              Colors.red),
+                          roleChip(s.isArabic ? 'وكيل' : 'Agent', 'agent',
+                              const Color(0xFF9B59B6)),
+                          roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
+                              AppColors.orange),
+                          roleChip(s.isArabic ? 'عميل' : 'Client', 'client',
+                              AppColors.teal),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              onPressed: () {
-                if (nameC.text.trim().isEmpty ||
-                    phoneC.text.trim().isEmpty) {
-                  _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill fields',
-                      Colors.red, Icons.warning_rounded);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(s.isArabic ? 'حفظ' : 'Save'),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.teal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  if (nameC.text.trim().isEmpty ||
+                      phoneC.text.trim().isEmpty) {
+                    _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill fields',
+                        Colors.red, Icons.warning_rounded);
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                child: Text(s.isArabic ? 'حفظ' : 'Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -421,34 +449,6 @@ class _EditDialog {
     } catch (_) {
       return false;
     }
-  }
-
-  static Widget _chip(StateSetter setSt, String value, String current,
-      String label, Color c) {
-    final active = current == value;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
-      child: InkWell(
-        onTap: () => setSt(() => current = value),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: active
-                ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
-                : null,
-            color: active ? null : c.withAlpha(18),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.withAlpha(active ? 180 : 80)),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  color: active ? Colors.white : c,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12)),
-        ),
-      ),
-    );
   }
 
   static Widget _fld(TextEditingController c, String hint, IconData icon,
@@ -474,6 +474,10 @@ class _EditDialog {
   }
 }
 
+// ======================================================
+// ➕ نافذة إنشاء حساب جديد
+// ======================================================
+
 class _CreateDialog {
   static Future<bool> show(BuildContext context) async {
     final s = context.read<AppSettings>();
@@ -487,104 +491,135 @@ class _CreateDialog {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Row(
-            children: [
-              const Icon(Icons.person_add_rounded, color: AppColors.orange),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(s.isArabic ? 'حساب جديد' : 'New account',
-                    style: const TextStyle(
-                        color: AppColors.orange, fontWeight: FontWeight.w900)),
+        builder: (ctx, setSt) {
+          Widget roleChip(String label, String value, Color c) {
+            final active = role == value;
+            return Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+              child: InkWell(
+                onTap: () => setSt(() => role = value),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    gradient: active
+                        ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
+                        : null,
+                    color: active ? null : c.withAlpha(18),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: c.withAlpha(active ? 180 : 80)),
+                  ),
+                  child: Text(label,
+                      style: TextStyle(
+                          color: active ? Colors.white : c,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12)),
+                ),
               ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            );
+          }
+
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22)),
+            title: Row(
               children: [
-                _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
-                    Icons.person_rounded, AppColors.orange, dark),
-                const SizedBox(height: 10),
-                _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
-                    Icons.phone_rounded, AppColors.teal, dark,
-                    kt: TextInputType.phone),
-                const SizedBox(height: 10),
-                _fld(passC,
-                    s.isArabic
-                        ? 'كلمة السر (6 أحرف على الأقل)'
-                        : 'Password (min 6)',
-                    Icons.lock_rounded, const Color(0xFF9B59B6), dark,
-                    obscure: true),
-                if (isCtrl) ...[
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
-                        style: TextStyle(
-                            color: dark
-                                ? Colors.grey.shade300
-                                : Colors.grey.shade600,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12)),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    children: [
-                      _chip(setSt, 'ctrl', role,
-                          s.isArabic ? 'متحكم' : 'Controller',
-                          const Color(0xFFB71C1C)),
-                      _chip(setSt, 'admin', role,
-                          s.isArabic ? 'مدير' : 'Admin', Colors.red),
-                      _chip(setSt, 'agent', role,
-                          s.isArabic ? 'وكيل' : 'Agent',
-                          const Color(0xFF9B59B6)),
-                      _chip(setSt, 'tech', role,
-                          s.isArabic ? 'صباغ' : 'Painter', AppColors.orange),
-                      _chip(setSt, 'client', role,
-                          s.isArabic ? 'عميل' : 'Client', AppColors.teal),
-                    ],
-                  ),
-                ],
+                const Icon(Icons.person_add_rounded, color: AppColors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(s.isArabic ? 'حساب جديد' : 'New account',
+                      style: const TextStyle(
+                          color: AppColors.orange, fontWeight: FontWeight.w900)),
+                ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () {
-                if (nameC.text.trim().isEmpty ||
-                    phoneC.text.trim().isEmpty ||
-                    passC.text.trim().isEmpty) {
-                  _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill all',
-                      Colors.red, Icons.warning_rounded);
-                  return;
-                }
-                if (passC.text.length < 6) {
-                  _snack(context,
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
+                      Icons.person_rounded, AppColors.orange, dark),
+                  const SizedBox(height: 10),
+                  _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
+                      Icons.phone_rounded, AppColors.teal, dark,
+                      kt: TextInputType.phone),
+                  const SizedBox(height: 10),
+                  _fld(passC,
                       s.isArabic
-                          ? 'كلمة السر 6 أحرف على الأقل'
-                          : 'Password min 6 chars',
-                      Colors.red, Icons.warning_rounded);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(s.isArabic ? 'إنشاء' : 'Create'),
+                          ? 'كلمة السر (6 أحرف على الأقل)'
+                          : 'Password (min 6)',
+                      Icons.lock_rounded, const Color(0xFF9B59B6), dark,
+                      obscure: true),
+                  if (isCtrl) ...[
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(s.isArabic ? 'الدور:' : 'Role:',
+                          style: TextStyle(
+                              color: dark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade600,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12)),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Wrap(
+                        children: [
+                          roleChip(s.isArabic ? 'متحكم' : 'Controller', 'ctrl',
+                              const Color(0xFFB71C1C)),
+                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
+                              Colors.red),
+                          roleChip(s.isArabic ? 'وكيل' : 'Agent', 'agent',
+                              const Color(0xFF9B59B6)),
+                          roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
+                              AppColors.orange),
+                          roleChip(s.isArabic ? 'عميل' : 'Client', 'client',
+                              AppColors.teal),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  if (nameC.text.trim().isEmpty ||
+                      phoneC.text.trim().isEmpty ||
+                      passC.text.trim().isEmpty) {
+                    _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill all',
+                        Colors.red, Icons.warning_rounded);
+                    return;
+                  }
+                  if (passC.text.length < 6) {
+                    _snack(context,
+                        s.isArabic
+                            ? 'كلمة السر 6 أحرف على الأقل'
+                            : 'Password min 6 chars',
+                        Colors.red, Icons.warning_rounded);
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
+                child: Text(s.isArabic ? 'إنشاء' : 'Create'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -597,34 +632,6 @@ class _CreateDialog {
       _snack(context, '$e', Colors.red, Icons.error_rounded);
       return false;
     }
-  }
-
-  static Widget _chip(StateSetter setSt, String value, String current,
-      String label, Color c) {
-    final active = current == value;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
-      child: InkWell(
-        onTap: () => setSt(() => current = value),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: active
-                ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
-                : null,
-            color: active ? null : c.withAlpha(18),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.withAlpha(active ? 180 : 80)),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  color: active ? Colors.white : c,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12)),
-        ),
-      ),
-    );
   }
 
   static Widget _fld(TextEditingController c, String hint, IconData icon,
@@ -664,4 +671,26 @@ void _snack(BuildContext c, String msg, Color color, IconData ic) {
     behavior: SnackBarBehavior.floating,
     duration: const Duration(seconds: 2),
   ));
+}
+
+// ======================================================
+// 🌉 جسر التوافق: يبقي simple_screens.dart يعمل بدون تعديل
+// ======================================================
+
+class CreateAccountPage extends AdminUsersPage {
+  const CreateAccountPage({super.key});
+}
+
+class EditUserDialog {
+  static Future<dynamic> show(BuildContext context, User u) async {
+    final au = AppUser(
+      id: u.id,
+      phone: u.phone,
+      name: u.name,
+      role: u.role,
+      points: u.points,
+      stored: u.stored,
+    );
+    return await _EditDialog.show(context, au);
+  }
 }
