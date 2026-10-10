@@ -1,667 +1,401 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
-import '../core/repositories/user_repo.dart';
+import '../core/guest_guard.dart';
 import '../core/theme.dart';
+import 'admin_users.dart';
+import 'home_screen.dart';
+import 'media_admin_screen.dart';
+import 'products_screen.dart';
+import 'profile_screen.dart';
+import 'simple_screens.dart';
 
-class AdminUsersPage extends StatefulWidget {
-  const AdminUsersPage({super.key});
+const double _kBarH = 62;
+const double _kStackH = 84;
+const double _kCircle = 54;
+const double _kR = _kBarH / 2;
+const double _kNotchW = 26;
+const double _kNotchS = 6;
+const double _kNotchD = 38;
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
   @override
-  State<AdminUsersPage> createState() => _AdminUsersPageState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _AdminUsersPageState extends State<AdminUsersPage> {
-  List<AppUser> _users = [];
-  bool _loading = true;
-  String? _err;
+class _MainScreenState extends State<MainScreen> {
+  int _idx = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _err = null;
-    });
-    try {
-      final list = await userRepo.listUsers();
-      if (mounted) setState(() => _users = list);
-    } catch (e) {
-      if (mounted) setState(() => _err = '$e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  bool get _isCtrl => context.read<AppSettings>().isController;
-
-  Future<void> _create() async {
-    final ok = await _CreateDialog.show(context);
-    if (ok == true) _load();
-  }
-
-  Future<void> _edit(AppUser u) async {
-    final ok = await _EditDialog.show(context, u);
-    if (ok == true) _load();
-  }
-
-  Future<void> _delete(AppUser u) async {
-    if (!_isCtrl) {
-      _snack(context, 'الحذف للمتحكم فقط', Colors.red, Icons.lock_rounded);
+  void _onTab(int i, bool isGuest, bool isArabic) {
+    if (isGuest && i == 2) {
+      GuestGuard.lock(
+        context,
+        title: isArabic ? 'المحفظة مقفلة 🔒' : 'Wallet locked 🔒',
+        message: isArabic
+            ? 'سجل دخولك أولاً واشتري مواد فاوري لتربح النقاط'
+            : 'Sign in first and buy Fawori products to earn points',
+        onLogin: () => setState(() => _idx = 4),
+        loginLabel: isArabic ? 'تسجيل الدخول' : 'Sign in',
+      );
       return;
     }
-    final s = context.read<AppSettings>();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.isArabic ? 'حذف الحساب' : 'Delete account'),
-        content: Text(s.isArabic
-            ? 'هل أنت متأكد من حذف ${u.name}؟'
-            : 'Delete ${u.name}?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(s.isArabic ? 'حذف' : 'Delete')),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    try {
-      await userRepo.deleteUser(u.id);
-      if (mounted) {
-        _snack(context, 'تم الحذف', Colors.green, Icons.check_rounded);
-        _load();
-      }
-    } catch (e) {
-      if (mounted) _snack(context, 'فشل: $e', Colors.red, Icons.error_rounded);
-    }
+    setState(() => _idx = i);
   }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppSettings>();
+    final bool isAdmin = s.isAdmin || s.isImageAdmin;
+    final bool isController = s.isController;
     final bool dark = Theme.of(context).brightness == Brightness.dark;
 
+    final screens = <Widget>[
+      HomeScreen(onOpenProducts: () => setState(() => _idx = 1)),
+      const ProductsScreen(),
+      const WalletScreen(),
+      isController
+          ? const AdminCodeView()
+          : (isAdmin ? const AdminUsersPage() : const FavoritesScreen()),
+      isAdmin ? const MediaAdminScreen() : const ProfileScreen(),
+    ];
+
+    final icons = <IconData>[
+      Icons.home_rounded,
+      Icons.grid_view_rounded,
+      Icons.account_balance_wallet_rounded,
+      isController
+          ? Icons.code_rounded
+          : (isAdmin
+              ? Icons.person_add_alt_1_rounded
+              : Icons.favorite_rounded),
+      isAdmin ? Icons.campaign_rounded : Icons.person_rounded,
+    ];
+    final labels = <String>[
+      s.isArabic ? 'الرئيسية' : 'Home',
+      s.isArabic ? 'المنتجات' : 'Products',
+      s.isArabic
+          ? (isAdmin ? 'النقاط والرصيد' : 'المحفظة')
+          : (isAdmin ? 'Points' : 'Wallet'),
+      s.isArabic
+          ? (isController
+              ? 'الإدارة'
+              : (isAdmin ? 'المستخدمون' : 'المفضلة'))
+          : (isController
+              ? 'Admin'
+              : (isAdmin ? 'Users' : 'Favorites')),
+      s.isArabic
+          ? (isAdmin ? 'إدارة الإعلام' : 'ملف شخصي')
+          : (isAdmin ? 'Media' : 'Profile'),
+    ];
+
     return Scaffold(
-      backgroundColor:
-          dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(s.isArabic ? 'إدارة المستخدمين' : 'Users management',
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: dark ? Colors.white : AppColors.ink)),
-        actions: [
-          IconButton(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.orange),
-          ),
-        ],
+      extendBody: true,
+      body: IndexedStack(index: _idx, children: screens),
+      bottomNavigationBar: _FancyBottomNav(
+        index: _idx,
+        dark: dark,
+        icons: icons,
+        labels: labels,
+        onTap: (i) => _onTab(i, s.isGuest, s.isArabic),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.orange,
-        onPressed: _create,
-        icon: const Icon(Icons.person_add_rounded, color: Colors.white),
-        label: Text(s.isArabic ? 'حساب جديد' : 'New user',
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800)),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _err != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline_rounded,
-                          color: Colors.red, size: 48),
-                      const SizedBox(height: 10),
-                      Text('$_err',
-                          style: const TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _users.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, i) =>
-                        _userCard(_users[i], dark, s),
-                  ),
-                ),
     );
   }
+}
 
-  Widget _userCard(AppUser u, bool dark, AppSettings s) {
-    final isMe = u.id == s.user?.id;
-    final color = _roleColor(u.role);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: dark ? const Color(0xFF1E1E28) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withAlpha(80)),
-        boxShadow: [
-          BoxShadow(
-              color: color.withAlpha(30),
-              blurRadius: 10,
-              offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: <Color>[color, color.withAlpha(180)]),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(_roleIcon(u.role), color: Colors.white, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+class _FancyBottomNav extends StatefulWidget {
+  final int index;
+  final bool dark;
+  final List<IconData> icons;
+  final List<String> labels;
+  final ValueChanged<int> onTap;
+  const _FancyBottomNav({
+    required this.index,
+    required this.dark,
+    required this.icons,
+    required this.labels,
+    required this.onTap,
+  });
+  @override
+  State<_FancyBottomNav> createState() => _FancyBottomNavState();
+}
+
+class _FancyBottomNavState extends State<_FancyBottomNav>
+    with SingleTickerProviderStateMixin {
+  late int _prev;
+  bool _press = false;
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _prev = widget.index;
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 430));
+    _c.value = 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant _FancyBottomNav old) {
+    super.didUpdateWidget(old);
+    if (old.index != widget.index) {
+      _prev = old.index;
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = widget.dark;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          18, 0, 18, MediaQuery.of(context).padding.bottom + 10),
+      child: LayoutBuilder(
+        builder: (context, cons) {
+          final W = cons.maxWidth;
+          const double pad = 14;
+          final slotInner = (W - pad * 2) / 5;
+          double centerOf(int i) {
+            final c = pad + slotInner * i + slotInner / 2;
+            return rtl ? W - c : c;
+          }
+
+          return AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) {
+              final t = Curves.easeOutBack.transform(_c.value);
+              final cx = centerOf(_prev) +
+                  (centerOf(widget.index) - centerOf(_prev)) * t;
+              return SizedBox(
+                height: _kStackH,
+                child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Expanded(
-                      child: Text(u.name.isEmpty ? '—' : u.name,
-                          style: TextStyle(
-                              color: dark ? Colors.white : AppColors.ink,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14)),
-                    ),
-                    if (isMe)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.orange.withAlpha(30),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(s.isArabic ? 'أنت' : 'You',
-                            style: const TextStyle(
-                                color: AppColors.orange,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800)),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: CustomPaint(
+                        size: Size(W, _kBarH),
+                        painter: _BarPainter(cx: cx, dark: dark),
                       ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 8,
+                      child: Center(
+                        child: Container(
+                          width: 56,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: dark
+                                ? Colors.white.withAlpha(28)
+                                : Colors.black.withAlpha(22),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: pad,
+                      right: pad,
+                      bottom: 0,
+                      child: SizedBox(
+                        height: _kBarH,
+                        child: Row(
+                          children: List.generate(5, (i) {
+                            final active = widget.index == i;
+                            return Expanded(
+                              child: _NavInk(
+                                onTap: () => widget.onTap(i),
+                                tooltip: widget.labels[i],
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: active ? 0 : 1,
+                                  child: Icon(
+                                    widget.icons[i],
+                                    size: 23,
+                                    color: dark
+                                        ? Colors.grey.shade300
+                                        : const Color(0xFF3F3F4A),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: cx - _kCircle / 2,
+                      top: _kStackH - _kBarH - _kCircle / 2 + 8,
+                      child: GestureDetector(
+                        onTapDown: (_) => setState(() => _press = true),
+                        onTapUp: (_) => setState(() => _press = false),
+                        onTapCancel: () => setState(() => _press = false),
+                        onTap: () => widget.onTap(widget.index),
+                        child: Tooltip(
+                          message: widget.labels[widget.index],
+                          child: AnimatedScale(
+                            scale: (_press ? 0.9 : 1) *
+                                (1 +
+                                    0.14 *
+                                        math.sin(math.pi *
+                                            _c.value.clamp(0.0, 1.0))),
+                            duration: const Duration(milliseconds: 130),
+                            curve: Curves.easeOut,
+                            child: Container(
+                              width: _kCircle,
+                              height: _kCircle,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: <Color>[
+                                    Color(0xFFFFA500),
+                                    Color(0xFFF26B0F),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFF26B0F)
+                                        .withAlpha(dark ? 150 : 120),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                  BoxShadow(
+                                    color: const Color(0xFFFFA500)
+                                        .withAlpha(70),
+                                    blurRadius: 36,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: Icon(
+                                  widget.icons[widget.index],
+                                  key: ValueKey<int>(widget.index),
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(u.phone.isEmpty ? '—' : u.phone,
-                    style: TextStyle(
-                        color:
-                            dark ? Colors.grey.shade400 : Colors.grey.shade700,
-                        fontSize: 12)),
-                const SizedBox(height: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withAlpha(25),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(_roleLabel(u.role, s.isArabic),
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Column(
-            children: [
-              _miniBtn(Icons.edit_rounded, AppColors.teal, () => _edit(u)),
-              const SizedBox(height: 6),
-              _miniBtn(
-                Icons.delete_rounded,
-                _isCtrl ? Colors.red : Colors.grey,
-                isMe ? null : () => _delete(u),
-              ),
-            ],
-          ),
-        ],
+              );
+            },
+          );
+        },
       ),
     );
-  }
-
-  Widget _miniBtn(IconData ic, Color c, VoidCallback? onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(7),
-        decoration: BoxDecoration(
-          color: c.withAlpha(20),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(ic, color: c, size: 18),
-      ),
-    );
-  }
-
-  Color _roleColor(String r) {
-    switch (r) {
-      case 'ctrl':
-        return const Color(0xFFB71C1C);
-      case 'admin':
-        return Colors.red;
-      case 'agent':
-        return const Color(0xFF9B59B6);
-      case 'tech':
-        return AppColors.orange;
-      default:
-        return AppColors.teal;
-    }
-  }
-
-  IconData _roleIcon(String r) {
-    switch (r) {
-      case 'ctrl':
-        return Icons.shield_rounded;
-      case 'admin':
-        return Icons.admin_panel_settings_rounded;
-      case 'agent':
-        return Icons.support_agent_rounded;
-      case 'tech':
-        return Icons.format_paint_rounded;
-      default:
-        return Icons.person_rounded;
-    }
-  }
-
-  String _roleLabel(String r, bool ar) {
-    switch (r) {
-      case 'ctrl':
-        return ar ? 'متحكم' : 'Controller';
-      case 'admin':
-        return ar ? 'مدير' : 'Admin';
-      case 'agent':
-        return ar ? 'وكيل' : 'Agent';
-      case 'tech':
-        return ar ? 'صباغ' : 'Painter';
-      case 'guest':
-        return ar ? 'ضيف' : 'Guest';
-      default:
-        return ar ? 'عميل' : 'Client';
-    }
   }
 }
 
-class _EditDialog {
-  static Future<bool> show(BuildContext context, AppUser u) async {
-    final s = context.read<AppSettings>();
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final nameC = TextEditingController(text: u.name);
-    final phoneC = TextEditingController(text: u.phone);
-    final passC = TextEditingController();
-    String role = u.role;
-    final isCtrl = s.isController;
+class _NavInk extends StatelessWidget {
+  final VoidCallback onTap;
+  final String tooltip;
+  final Widget child;
+  const _NavInk(
+      {required this.onTap, required this.tooltip, required this.child});
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Row(
-            children: [
-              const Icon(Icons.edit_rounded, color: AppColors.teal),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(s.isArabic ? 'تعديل المستخدم' : 'Edit user',
-                    style: const TextStyle(
-                        color: AppColors.teal, fontWeight: FontWeight.w900)),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
-                    Icons.person_rounded, AppColors.orange, dark),
-                const SizedBox(height: 10),
-                _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
-                    Icons.phone_rounded, AppColors.teal, dark,
-                    kt: TextInputType.phone),
-                const SizedBox(height: 10),
-                _fld(passC,
-                    s.isArabic
-                        ? 'كلمة سر جديدة (اختياري)'
-                        : 'New password (optional)',
-                    Icons.lock_rounded, const Color(0xFF9B59B6), dark,
-                    obscure: true),
-                const SizedBox(height: 14),
-                if (isCtrl) ...[
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
-                        style: TextStyle(
-                            color: dark
-                                ? Colors.grey.shade300
-                                : Colors.grey.shade600,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12)),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    children: [
-                      _chip(setSt, 'ctrl', role,
-                          s.isArabic ? 'متحكم' : 'Controller',
-                          const Color(0xFFB71C1C)),
-                      _chip(setSt, 'admin', role,
-                          s.isArabic ? 'مدير' : 'Admin', Colors.red),
-                      _chip(setSt, 'agent', role,
-                          s.isArabic ? 'وكيل' : 'Agent',
-                          const Color(0xFF9B59B6)),
-                      _chip(setSt, 'tech', role,
-                          s.isArabic ? 'صباغ' : 'Painter', AppColors.orange),
-                      _chip(setSt, 'client', role,
-                          s.isArabic ? 'عميل' : 'Client', AppColors.teal),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () {
-                if (nameC.text.trim().isEmpty ||
-                    phoneC.text.trim().isEmpty) {
-                  _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill fields',
-                      Colors.red, Icons.warning_rounded);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(s.isArabic ? 'حفظ' : 'Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (ok != true) return false;
-    try {
-      final fields = <String, dynamic>{
-        'name': nameC.text.trim(),
-        'phone': phoneC.text.trim(),
-      };
-      if (isCtrl) fields['role'] = role;
-      await userRepo.updateUser(u.id, fields);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  static Widget _chip(StateSetter setSt, String value, String current,
-      String label, Color c) {
-    final active = current == value;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
       child: InkWell(
-        onTap: () => setSt(() => current = value),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: active
-                ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
-                : null,
-            color: active ? null : c.withAlpha(18),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.withAlpha(active ? 180 : 80)),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  color: active ? Colors.white : c,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12)),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(_kR),
+        child: SizedBox(
+          height: _kBarH,
+          child: Center(child: child),
         ),
-      ),
-    );
-  }
-
-  static Widget _fld(TextEditingController c, String hint, IconData icon,
-      Color ic, bool dark,
-      {bool obscure = false, TextInputType? kt}) {
-    return TextField(
-      controller: c,
-      obscureText: obscure,
-      keyboardType: kt,
-      style: TextStyle(color: dark ? Colors.white : AppColors.ink),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-            color: dark ? Colors.grey.shade500 : Colors.grey.shade400),
-        prefixIcon: Icon(icon, color: ic, size: 20),
-        filled: true,
-        fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none),
       ),
     );
   }
 }
 
-class _CreateDialog {
-  static Future<bool> show(BuildContext context) async {
-    final s = context.read<AppSettings>();
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final nameC = TextEditingController();
-    final phoneC = TextEditingController();
-    final passC = TextEditingController();
-    String role = 'client';
-    final isCtrl = s.isController;
+class _BarPainter extends CustomPainter {
+  final double cx;
+  final bool dark;
+  _BarPainter({required this.cx, required this.dark});
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Row(
-            children: [
-              const Icon(Icons.person_add_rounded, color: AppColors.orange),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(s.isArabic ? 'حساب جديد' : 'New account',
-                    style: const TextStyle(
-                        color: AppColors.orange, fontWeight: FontWeight.w900)),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _fld(nameC, s.isArabic ? 'الاسم' : 'Name',
-                    Icons.person_rounded, AppColors.orange, dark),
-                const SizedBox(height: 10),
-                _fld(phoneC, s.isArabic ? 'الهاتف' : 'Phone',
-                    Icons.phone_rounded, AppColors.teal, dark,
-                    kt: TextInputType.phone),
-                const SizedBox(height: 10),
-                _fld(passC,
-                    s.isArabic
-                        ? 'كلمة السر (6 أحرف على الأقل)'
-                        : 'Password (min 6)',
-                    Icons.lock_rounded, const Color(0xFF9B59B6), dark,
-                    obscure: true),
-                if (isCtrl) ...[
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
-                        style: TextStyle(
-                            color: dark
-                                ? Colors.grey.shade300
-                                : Colors.grey.shade600,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12)),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    children: [
-                      _chip(setSt, 'ctrl', role,
-                          s.isArabic ? 'متحكم' : 'Controller',
-                          const Color(0xFFB71C1C)),
-                      _chip(setSt, 'admin', role,
-                          s.isArabic ? 'مدير' : 'Admin', Colors.red),
-                      _chip(setSt, 'agent', role,
-                          s.isArabic ? 'وكيل' : 'Agent',
-                          const Color(0xFF9B59B6)),
-                      _chip(setSt, 'tech', role,
-                          s.isArabic ? 'صباغ' : 'Painter', AppColors.orange),
-                      _chip(setSt, 'client', role,
-                          s.isArabic ? 'عميل' : 'Client', AppColors.teal),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () {
-                if (nameC.text.trim().isEmpty ||
-                    phoneC.text.trim().isEmpty ||
-                    passC.text.trim().isEmpty) {
-                  _snack(context, s.isArabic ? 'املأ الحقول' : 'Fill all',
-                      Colors.red, Icons.warning_rounded);
-                  return;
-                }
-                if (passC.text.length < 6) {
-                  _snack(context,
-                      s.isArabic
-                          ? 'كلمة السر 6 أحرف على الأقل'
-                          : 'Password min 6 chars',
-                      Colors.red, Icons.warning_rounded);
-                  return;
-                }
-                Navigator.pop(ctx, true);
-              },
-              child: Text(s.isArabic ? 'إنشاء' : 'Create'),
-            ),
-          ],
-        ),
-      ),
-    );
+  @override
+  void paint(Canvas canvas, Size size) {
+    final W = size.width;
+    const top = 0.0;
+    final lx = cx - _kNotchW - _kNotchS;
+    final rx = cx + _kNotchW + _kNotchS;
 
-    if (ok != true) return false;
-    try {
-      await userRepo.createUser(
-          phoneC.text.trim(), nameC.text.trim(), passC.text, role);
-      return true;
-    } catch (e) {
-      _snack(context, '$e', Colors.red, Icons.error_rounded);
-      return false;
+    double capYLeft(double x) {
+      if (x >= _kR) return top;
+      final dx = _kR - x;
+      if (dx >= _kR) return top + _kR;
+      return top + _kR - math.sqrt(_kR * _kR - dx * dx);
     }
+
+    double capYRight(double x) {
+      if (x <= W - _kR) return top;
+      final dx = x - (W - _kR);
+      if (dx >= _kR) return top + _kR;
+      return top + _kR - math.sqrt(_kR * _kR - dx * dx);
+    }
+
+    final ly = capYLeft(lx);
+    final ry = capYRight(rx);
+
+    final p = Path()..moveTo(0, top + _kR);
+    if (lx >= _kR) {
+      p.quadraticBezierTo(0, top, _kR, top);
+      p.lineTo(lx, top);
+    } else {
+      p.quadraticBezierTo(0, ly, lx, ly);
+    }
+    p.quadraticBezierTo(
+        cx - _kNotchW + 4, ly + 4, cx - _kNotchW + 6, _kNotchD * 0.5);
+    p.quadraticBezierTo(cx - _kNotchW * 0.4, _kNotchD, cx, _kNotchD);
+    p.quadraticBezierTo(cx + _kNotchW * 0.4, _kNotchD, cx + _kNotchW - 6,
+        _kNotchD * 0.5);
+    p.quadraticBezierTo(cx + _kNotchW - 4, ry + 4, rx, ry);
+    if (rx <= W - _kR) {
+      p.lineTo(W - _kR, top);
+      p.quadraticBezierTo(W, top, W, top + _kR);
+    } else {
+      p.quadraticBezierTo(W, ry, W, top + _kR);
+    }
+    p.quadraticBezierTo(W, top + _kBarH, W - _kR, top + _kBarH);
+    p.lineTo(_kR, top + _kBarH);
+    p.quadraticBezierTo(0, top + _kBarH, 0, top + _kR);
+    p.close();
+
+    canvas.drawShadow(p, Colors.black.withAlpha(90), 14, true);
+    final paint = Paint()
+      ..shader = LinearGradient(
+        colors: dark
+            ? const <Color>[Color(0xFF24242E), Color(0xFF191920)]
+            : const <Color>[Colors.white, Color(0xFFF4F4F8)],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, top, W, _kBarH));
+    canvas.drawPath(p, paint);
   }
 
-  static Widget _chip(StateSetter setSt, String value, String current,
-      String label, Color c) {
-    final active = current == value;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
-      child: InkWell(
-        onTap: () => setSt(() => current = value),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: active
-                ? LinearGradient(colors: <Color>[c, c.withAlpha(180)])
-                : null,
-            color: active ? null : c.withAlpha(18),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: c.withAlpha(active ? 180 : 80)),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  color: active ? Colors.white : c,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12)),
-        ),
-      ),
-    );
-  }
-
-  static Widget _fld(TextEditingController c, String hint, IconData icon,
-      Color ic, bool dark,
-      {bool obscure = false, TextInputType? kt}) {
-    return TextField(
-      controller: c,
-      obscureText: obscure,
-      keyboardType: kt,
-      style: TextStyle(color: dark ? Colors.white : AppColors.ink),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-            color: dark ? Colors.grey.shade500 : Colors.grey.shade400),
-        prefixIcon: Icon(icon, color: ic, size: 20),
-        filled: true,
-        fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none),
-      ),
-    );
-  }
-}
-
-void _snack(BuildContext c, String msg, Color color, IconData ic) {
-  ScaffoldMessenger.of(c).showSnackBar(SnackBar(
-    content: Row(children: [
-      Icon(ic, color: Colors.white, size: 18),
-      const SizedBox(width: 8),
-      Expanded(
-          child: Text(msg,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800))),
-    ]),
-    backgroundColor: color,
-    behavior: SnackBarBehavior.floating,
-    duration: const Duration(seconds: 2),
-  ));
+  @override
+  bool shouldRepaint(covariant _BarPainter old) =>
+      old.cx != cx || old.dark != dark;
 }
