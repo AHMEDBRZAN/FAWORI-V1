@@ -1,3 +1,4 @@
+import 'repositories/orders_repo.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -402,6 +403,23 @@ class OrdersService {
   }
 
   static Future<void> submitOrder(Order o) async {
+    // ✅ كتابة مباشرة إلى Firestore
+    try {
+      await ordersRepo.add(FireOrder(
+        id: o.id,
+        userId: o.userId,
+        userName: o.userName,
+        userRole: o.userRole,
+        phone: '',
+        date: o.date,
+        status: o.status,
+        total: o.total,
+        invoiceNo: o.invoiceNo ?? '',
+        items: o.items
+            .map((it) => FireOrderItem(name: it.name, qty: it.qty))
+            .toList(),
+      ));
+    } catch (_) {}
     // ✅ 1) حفظ فوري محلياً ← يظهر فوراً في "قيد المراجعة"
     await _saveSubmittedLocal(o);
     // ✅ 2) إرسال للمستودع بالخلفية
