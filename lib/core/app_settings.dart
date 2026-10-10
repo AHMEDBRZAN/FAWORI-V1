@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'messenger.dart';
 import 'orders_service.dart';
 import 'store_service.dart';
+import 'repositories/user_repo.dart' as repo;
 
 class AppSettings extends ChangeNotifier {
   bool _isArabic = true;
@@ -18,7 +19,10 @@ class AppSettings extends ChangeNotifier {
   String _lastSig = '';
   int pendingCount = 0;
 
-  // 👁️ تتبع المقروء لكل مستخدم على حدة
+  // ✅ صمام أمان ضد التعليق عند النقر المتكرر
+  int _lastTickMs = 0;
+  bool _ticking = false;
+
   Set<String> _seenIds = {};
   bool _seenLoaded = false;
   int unseenCount = 0;
@@ -29,7 +33,13 @@ class AppSettings extends ChangeNotifier {
   bool get isDark => _isDark;
   bool get isImageAdmin => _isImageAdmin;
   bool get isLoggedIn => _user != null;
-  bool get isAdmin => _user?.role == 'admin';
+
+  /// المتحكم: أعلى صلاحيات في النظام
+  bool get isController => _user?.role == 'ctrl';
+
+  /// المدير أو المتحكم
+  bool get isAdmin => _user?.role == 'admin' || _user?.role == 'ctrl';
+
   bool get isGuest => _user == null || _user!.role == 'guest';
   User? get user => _user;
   int get points => _user?.points ?? 0;
@@ -38,7 +48,6 @@ class AppSettings extends ChangeNotifier {
 
   String get _seenKey => 'seen_${_user?.id ?? ''}';
 
-  /// ✅ تطبيق الثيم المحفوظ قبل أول إطار (يمنع وميض اللون)
   void applyInitial({required bool dark, required bool arabic}) {
     _isDark = dark;
     _isArabic = arabic;
@@ -64,11 +73,9 @@ class AppSettings extends ChangeNotifier {
     return _isArabic ? (m['ar'] ?? key) : (m['en'] ?? key);
   }
 
-  /// 🎯 الطلبات المهمة لكل دور:
-  /// المدير ← المعلقة | المستخدم ← طلباته ذات الحالة النهائية
   List<String> _relevantIds(List<Order> orders) {
     if (_user == null) return const [];
-    if (_user!.role == 'admin') {
+    if (isAdmin) {
       return orders
           .where((o) => o.status == 'pending')
           .map((o) => o.id)
@@ -82,7 +89,6 @@ class AppSettings extends ChangeNotifier {
 
   void startOrderPolling() {
     _pollTimer?.cancel();
-    // ✅ أسرع: كل 5 ثوانٍ (بدلاً من 20) لظهور الشارة والسنackbar فوراً
     _pollTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _pollTick());
 
@@ -101,22 +107,22 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> _pollTick() async {
     if (_user == null || _user!.role == 'guest') return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_ticking || now - _lastTickMs < 3000) return;
+    _lastTickMs = now;
+    _ticking = true;
     try {
       final created = await OrdersService.convertStoredToPoints(_user!.id);
-
-      // ✅ فك تعليق المزامنة من الخلفية (حتى لو المستخدم خارج صفحة الطلبات)
       await OrdersService.resolveStaleSync();
       final orders = await OrdersService.loadOrders();
       final pending = orders.where((o) => o.status == 'pending').length;
       pendingCount = pending;
 
-      // 👁️ حساب غير المقروء
       final relevant = _relevantIds(orders).toSet();
       if (!_seenLoaded) {
         _seenLoaded = true;
         final p = await SharedPreferences.getInstance();
         _seenIds = (p.getStringList(_seenKey) ?? []).toSet();
-        // أول مرة: كل الموجود مقروء (لا شارة وهمية)
         if (_seenIds.isEmpty) {
           _seenIds = Set<String>.from(relevant);
           await p.setStringList(_seenKey, _seenIds.toList());
@@ -124,11 +130,8 @@ class AppSettings extends ChangeNotifier {
       }
       unseenCount = relevant.difference(_seenIds).length;
 
-      if (_user!.role == 'admin' &&
-          _lastPending >= 0 &&
-          pending > _lastPending) {
+      if (isAdmin && _lastPending >= 0 && pending > _lastPending) {
         final diff = pending - _lastPending;
-        // ✅ ضمان شارة الجرس: أخرج أحدث الطلبات من قائمة "المقروء"
         final pendingSorted = orders
             .where((o) => o.status == 'pending')
             .toList()
@@ -165,10 +168,12 @@ class AppSettings extends ChangeNotifier {
         }
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _ticking = false;
+    }
   }
 
-  /// ✅ تعليم كل الحالي كمقروء (تختفي الشارة) — للمدير والمستخدم
   Future<void> markAllSeen() async {
     if (_user == null || _user!.role == 'guest') return;
     try {
@@ -189,8 +194,18 @@ class AppSettings extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// ✅ احتساب موحّد مع صفحة النقاط والرصيد:
-  /// مجموع الفواتير − مرتجعات returns.json
+  User _toUser(repo.AppUser au) {
+    return User(
+      id: au.id,
+      name: au.name,
+      role: au.role,
+      phone: au.phone,
+      password: '',
+      points: au.points,
+      stored: au.stored,
+    );
+  }
+
   Future<User> _withInvoiceTotals(User base) async {
     try {
       final invs = await StoreService.loadInvoices();
@@ -245,38 +260,68 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loginAsUser(User u) async {
-    _user = await _withInvoiceTotals(u);
-    _isImageAdmin = (u.role == 'admin');
-    _seenLoaded = false;
-    _seenIds = {};
+  /// إنشاء حساب المتحكم الأساسي تلقائياً عند أول دخول
+  Future<repo.AppUser?> _ensureController() async {
     try {
-      await StoreService.upsertUser(u);
-    } catch (_) {}
-    await _savePrefs();
-    startOrderPolling();
-    notifyListeners();
+      return await repo.userRepo.login('19972000', 'ad1234');
+    } catch (_) {
+      try {
+        final created =
+            await repo.userRepo.register('19972000', 'المتحكم', 'ad1234');
+        if (created == null) return null;
+        final ctrl = repo.AppUser(
+          id: created.id,
+          phone: '19972000',
+          name: 'المتحكم',
+          role: 'ctrl',
+          points: 0,
+          stored: 0,
+        );
+        await repo.userRepo.save(ctrl);
+        return ctrl;
+      } catch (_) {
+        return null;
+      }
+    }
   }
 
+  /// دخول عادي + بوابة المتحكم الأساسية
+  Future<bool> loginWithFirebase(String phone, String password) async {
+    try {
+      repo.AppUser? au;
+      if (phone.trim() == '19972000' && password == 'ad1234') {
+        au = await _ensureController();
+      } else {
+        au = await repo.userRepo.login(phone, password);
+      }
+      if (au == null) return false;
+      _user = await _withInvoiceTotals(_toUser(au));
+      _isImageAdmin = isAdmin;
+      _seenLoaded = false;
+      _seenIds = {};
+      await _savePrefs();
+      startOrderPolling();
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// دعم للشاشات القديمة حتى نستبدلها
   Future<void> loginAsAdmin() async {
-    final users = await StoreService.loadUsers();
-    final admins = users.where((u) => u.role == 'admin').toList();
-    User admin;
-    if (admins.isNotEmpty) {
-      admin = admins.first;
+    final au = await _ensureController();
+    if (au != null) {
+      _user = await _withInvoiceTotals(_toUser(au));
     } else {
-      admin = User(
+      _user = User(
         id: 'admin_001',
         name: 'المدير',
         role: 'admin',
         phone: '0000000000',
         password: 'admin',
       );
-      try {
-        await StoreService.upsertUser(admin);
-      } catch (_) {}
     }
-    _user = await _withInvoiceTotals(admin);
     _isImageAdmin = true;
     _seenLoaded = false;
     _seenIds = {};
@@ -286,10 +331,16 @@ class AppSettings extends ChangeNotifier {
   }
 
   Future<void> loginAsGuest() async {
-    _user = User(
+    try {
+      final au = await repo.userRepo.guest();
+      _user = _toUser(au);
+    } catch (_) {
+      _user = User(
         id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
         name: 'ضيف',
-        role: 'guest');
+        role: 'guest',
+      );
+    }
     _isImageAdmin = false;
     unseenCount = 0;
     await _savePrefs();
@@ -297,6 +348,27 @@ class AppSettings extends ChangeNotifier {
   }
 
   Future<void> guestLogin() => loginAsGuest();
+
+  Future<void> loginAsUser(User u) async {
+    try {
+      final au = repo.AppUser(
+        id: u.id,
+        phone: u.phone,
+        name: u.name,
+        role: u.role,
+        points: u.points,
+        stored: u.stored,
+      );
+      await repo.userRepo.save(au);
+    } catch (_) {}
+    _user = await _withInvoiceTotals(u);
+    _isImageAdmin = isAdmin;
+    _seenLoaded = false;
+    _seenIds = {};
+    await _savePrefs();
+    startOrderPolling();
+    notifyListeners();
+  }
 
   void syncUser(User u) {
     _user = u;
@@ -306,12 +378,12 @@ class AppSettings extends ChangeNotifier {
   Future<void> refreshUser() async {
     if (_user == null) return;
     try {
-      final users = await StoreService.loadUsers();
-      final found = users.where((u) => u.id == _user!.id).toList();
-      final base = found.isNotEmpty ? found.first : _user!;
-      _user = await _withInvoiceTotals(base);
-      await _savePrefs();
-      notifyListeners();
+      final au = await repo.userRepo.restore();
+      if (au != null) {
+        _user = await _withInvoiceTotals(_toUser(au));
+        await _savePrefs();
+        notifyListeners();
+      }
     } catch (_) {}
   }
 
@@ -328,7 +400,14 @@ class AppSettings extends ChangeNotifier {
     );
     _user = newUser;
     try {
-      await StoreService.upsertUser(newUser);
+      await repo.userRepo.save(repo.AppUser(
+        id: newUser.id,
+        phone: newUser.phone,
+        name: newUser.name,
+        role: newUser.role,
+        points: newUser.points,
+        stored: newUser.stored,
+      ));
     } catch (_) {}
     await _savePrefs();
     notifyListeners();
@@ -347,13 +426,23 @@ class AppSettings extends ChangeNotifier {
     );
     _user = newUser;
     try {
-      await StoreService.upsertUser(newUser);
+      await repo.userRepo.save(repo.AppUser(
+        id: newUser.id,
+        phone: newUser.phone,
+        name: newUser.name,
+        role: newUser.role,
+        points: newUser.points,
+        stored: newUser.stored,
+      ));
     } catch (_) {}
     await _savePrefs();
     notifyListeners();
   }
 
-  void logout() {
+  Future<void> logout() async {
+    try {
+      await repo.userRepo.logout();
+    } catch (_) {}
     _user = null;
     _isImageAdmin = false;
     _pollTimer?.cancel();
@@ -384,26 +473,28 @@ class AppSettings extends ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     _isArabic = p.getBool('isArabic') ?? true;
     _isDark = p.getBool('isDark') ?? false;
-    final id = p.getString('userId');
     final role = p.getString('userRole') ?? '';
 
-    // ✅ لا نستعيد جلسات الضيف أبداً — يجب عليهم تسجيل الدخول يدوياً
-    if (id != null && id.isNotEmpty && role != 'guest') {
-      final users = await StoreService.loadUsers();
-      final found = users.where((u) => u.id == id).toList();
-      if (found.isNotEmpty) {
-        final base = found.first;
-        _user = await _withInvoiceTotals(base);
-        _isImageAdmin = (_user!.role == 'admin');
+    if (role == 'guest') {
+      await p.remove('userId');
+      await p.remove('userName');
+      await p.remove('userRole');
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final au = await repo.userRepo.restore();
+      if (au != null && au.role != 'guest') {
+        _user = await _withInvoiceTotals(_toUser(au));
+        _isImageAdmin = isAdmin;
         startOrderPolling();
       } else {
-        // المستخدم لم يعد موجوداً (حُذف) — نظّف التخزين
         await p.remove('userId');
         await p.remove('userName');
         await p.remove('userRole');
       }
-    } else if (role == 'guest') {
-      // ✅ ضيف قديم خرج — نظّف البيانات ولا تُعده
+    } catch (_) {
       await p.remove('userId');
       await p.remove('userName');
       await p.remove('userRole');
