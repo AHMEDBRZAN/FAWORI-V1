@@ -4,7 +4,7 @@ import '../core/app_settings.dart';
 import '../core/repositories/user_repo.dart';
 import '../core/store_service.dart';
 import '../core/theme.dart';
-
+import 'orders_fire_screen.dart';
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
   @override
@@ -101,10 +101,19 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
                 color: dark ? Colors.white : AppColors.ink)),
-        actions: [
+       actions: [
           IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh_rounded, color: AppColors.orange),
+          ),
+          IconButton(
+            tooltip: s.isArabic ? 'الطلبات' : 'Orders',
+            icon: const Icon(Icons.shopping_bag_outlined,
+                color: AppColors.teal),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const OrdersFireScreen())),
           ),
         ],
       ),
