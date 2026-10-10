@@ -14,7 +14,7 @@ import '../widgets/pressable.dart';
 import 'admin_users.dart';
 import 'product_detail_screen.dart';
 
-const String _kProxy = 'DISABLED_UNTIL_SERVER_UPDATE';
+const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/';
 
 String _dmy(String iso) {
   final p = iso.split('-');
