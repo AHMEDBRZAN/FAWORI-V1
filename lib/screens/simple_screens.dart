@@ -1790,7 +1790,7 @@ class _AdminPointsViewState extends State<AdminPointsView> {
             color: dark ? Colors.white : AppColors.ink,
           ),
         ),
-        actions: (_sel == null && s.user?.id == 'ctrl')
+      actions: (_sel == null && s.isController)
             ? [
                 IconButton(
                   tooltip: s.isArabic ? 'إنشاء حساب' : 'Create account',
@@ -2302,7 +2302,7 @@ class _AdminPointsViewState extends State<AdminPointsView> {
                 ],
               ),
               const SizedBox(width: 4),
-              if (s.user?.id == 'ctrl') ...[
+              if (s.isController) ...[
                 IconButton(
                   tooltip: s.isArabic ? 'تعديل' : 'Edit',
                   icon: const Icon(Icons.edit_rounded,
