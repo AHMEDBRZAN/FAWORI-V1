@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
-import '../core/store_service.dart';
 import '../core/theme.dart';
 import 'main_screen.dart';
 
@@ -64,20 +63,8 @@ class _LoginScreenState extends State<LoginScreen>
         });
         return;
       }
-      if (ph == '1' && pw == '2') {
-        await settings.loginAsAdmin();
-        _go();
-        return;
-      }
-      final users = await StoreService.loadUsers();
-      User? found;
-      for (final u in users) {
-        if (u.phone == ph) {
-          found = u;
-          break;
-        }
-      }
-      if (found == null || found.password != pw) {
+      final ok = await settings.loginWithFirebase(ph, pw);
+      if (!ok) {
         setState(() {
           _busy = false;
           _err = settings.isArabic
@@ -85,11 +72,6 @@ class _LoginScreenState extends State<LoginScreen>
               : 'Invalid credentials';
         });
         return;
-      }
-      try {
-        await settings.loginAsUser(found);
-      } catch (_) {
-        settings.syncUser(found);
       }
       _go();
     } catch (e) {
@@ -172,7 +154,6 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ✅ الشعار بتوهج برتقالي
                       Container(
                         width: 84,
                         height: 84,
@@ -208,7 +189,6 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ),
                       const SizedBox(height: 26),
-                      // ✅ البطاقة المتوهجة الدوارة
                       AnimatedBuilder(
                         animation: _glow,
                         builder: (context, child) => CustomPaint(
@@ -228,7 +208,6 @@ class _LoginScreenState extends State<LoginScreen>
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // ✅ شريط العنوان (يفتح/يغلق النموذج)
                               InkWell(
                                 onTap: () =>
                                     setState(() => _open = !_open),
@@ -317,7 +296,6 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                               ),
-                              // ✅ النموذج المتمدد (مثل الفيديو)
                               AnimatedSize(
                                 duration: const Duration(milliseconds: 500),
                                 curve: Curves.easeInOut,
@@ -517,6 +495,7 @@ class _LoginScreenState extends State<LoginScreen>
                                               ],
                                             ),
                                             if (_err != null) ...[
+                                              const SizedBox(height: 8),
                                               Container(
                                                 padding:
                                                     const EdgeInsets.all(10),
@@ -570,7 +549,6 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-/// 🌈 رسّام الحدود: حلقة أساسية خافتة دائماً + توهجان يدوران بلا نهاية
 class _GlowBorderPainter extends CustomPainter {
   final double angle;
   final bool dark;
@@ -581,14 +559,12 @@ class _GlowBorderPainter extends CustomPainter {
     final rect = Rect.fromLTWH(4, 4, size.width - 8, size.height - 8);
     final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(24));
 
-    // ✅ 1) حلقة أساسية خافتة حول البطاقة كاملة (لا اختفاء أبداً)
     final base = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..color = AppColors.orange.withAlpha(dark ? 80 : 60);
     canvas.drawRRect(rrect, base);
 
-    // ✅ 2) توهجان يدوران: اللون عند 0.0 = اللون عند 1.0 (التفاف بلا درزة)
     final gradient = SweepGradient(
       startAngle: angle,
       endAngle: angle + 2 * math.pi,
@@ -603,7 +579,6 @@ class _GlowBorderPainter extends CustomPainter {
     );
     final shader = gradient.createShader(rect);
 
-    // توهج خارجي ناعم
     canvas.drawRRect(
         rrect,
         Paint()
@@ -612,7 +587,6 @@ class _GlowBorderPainter extends CustomPainter {
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6)
           ..shader = shader);
 
-    // الخط الحاد
     canvas.drawRRect(
         rrect,
         Paint()
