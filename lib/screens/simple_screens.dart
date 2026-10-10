@@ -14,7 +14,7 @@ import '../widgets/pressable.dart';
 import 'admin_users.dart';
 import 'product_detail_screen.dart';
 
-const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
+const String _kProxy = 'DISABLED_UNTIL_SERVER_UPDATE';
 
 String _dmy(String iso) {
   final p = iso.split('-');
@@ -4436,7 +4436,7 @@ class _AdminCodeViewState extends State<AdminCodeView> {
     try {
       final r = await http
           .get(Uri.parse(
-              'https://api.github.com/repos/AHMEDBRZAN/FAWORI/git/trees/main?recursive=1&t=${DateTime.now().millisecondsSinceEpoch}'))
+              'https://api.github.com/repos/AHMEDBRZAN/FAWORI-V1/git/trees/main?recursive=1&t=${DateTime.now().millisecondsSinceEpoch}'))
           .timeout(const Duration(seconds: 12));
       if (r.statusCode != 200) throw Exception('HTTP ${r.statusCode}');
       final j = jsonDecode(r.body);
@@ -4621,7 +4621,7 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
     try {
       final r = await http
           .get(Uri.parse(
-              'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI/main/${widget.path}?t=${DateTime.now().millisecondsSinceEpoch}'))
+             'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main/${widget.path}?t=${DateTime.now().millisecondsSinceEpoch}'))
           .timeout(const Duration(seconds: 12));
       if (r.statusCode != 200) throw Exception('HTTP ${r.statusCode}');
       _ctrl.text = r.body;
