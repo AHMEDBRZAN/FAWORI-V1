@@ -4,7 +4,6 @@ import '../core/app_settings.dart';
 import '../core/repositories/orders_repo.dart';
 import '../core/theme.dart';
 
-/// تنسيق الأرقام بفواصل (مثل 125000 → 125,000)
 String fmtThousands(num n) {
   final s = n.toInt().toString();
   final buf = StringBuffer();
@@ -24,49 +23,233 @@ class OrdersFireScreen extends StatefulWidget {
 }
 
 class _OrdersFireScreenState extends State<OrdersFireScreen> {
-  List<FireOrder> _all = [];
-  bool _loading = true;
-  String? _err;
   String _filter = 'all';
+  int _lastPendingCount = -1;
+  bool _firstLoad = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
+  Widget build(BuildContext context) {
+    final s = context.watch<AppSettings>();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor:
+          dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(s.isArabic ? 'الطلبات' : 'Orders',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: dark ? Colors.white : AppColors.ink)),
+      ),
+      body: StreamBuilder<List<FireOrder>>(
+        stream: ordersRepo.stream(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return Center(
+              child: Text('${snap.error}',
+                  style: const TextStyle(color: Colors.red)),
+            );
+          }
+
+          final all = snap.data ?? [];
+
+          // ✅ إشعار الطلبات الجديدة
+          final pendingNow =
+              all.where((o) => o.status == 'pending').length;
+          if (_lastPendingCount >= 0 &&
+              pendingNow > _lastPendingCount &&
+              !_firstLoad &&
+              s.isAdmin) {
+            final diff = pendingNow - _lastPendingCount;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(
+                      s.isArabic
+                          ? '🔔 وصل $diff طلب جديد!'
+                          : '🔔 $diff new order(s)!',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900)),
+                  backgroundColor: const Color(0xFFF26B0F),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 3),
+                ));
+              }
+            });
+          }
+          _lastPendingCount = pendingNow;
+          _firstLoad = false;
+
+          final shown = _filter == 'all'
+              ? all
+              : all.where((o) => o.status == _filter).toList();
+
+          return RefreshIndicator(
+            onRefresh: () async {}, // Stream يتكفل بالتحديث
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Row(
+                  children: [
+                    _chip(s.isArabic ? 'الكل' : 'All', 'all',
+                        AppColors.orange),
+                    _chip(s.isArabic ? 'انتظار' : 'Pending', 'pending',
+                        AppColors.orange),
+                    _chip(s.isArabic ? 'مقبول' : 'Accepted', 'accepted',
+                        AppColors.teal),
+                    _chip(s.isArabic ? 'مرفوض' : 'Rejected', 'rejected',
+                        Colors.red),
+                    const Spacer(),
+                    if (pendingNow > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.orange.withAlpha(40),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.orange,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text('$pendingNow',
+                                style: const TextStyle(
+                                    color: AppColors.orange,
+                                    fontWeight: FontWeight.w900)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (shown.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 60),
+                    child: Center(
+                      child: Text(s.isArabic ? 'لا توجد طلبات' : 'No orders',
+                          style: TextStyle(color: Colors.grey.shade500)),
+                    ),
+                  )
+                else
+                  for (final o in shown)
+                    InkWell(
+                      onTap: () => _details(o),
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: dark
+                              ? const Color(0xFF1E1E28)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                              color: _statusColor(o.status).withAlpha(70)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(colors: <Color>[
+                                  _statusColor(o.status),
+                                  _statusColor(o.status).withAlpha(160)
+                                ]),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(Icons.shopping_bag_rounded,
+                                  color: Colors.white, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(o.userName,
+                                      style: TextStyle(
+                                          color: dark
+                                              ? Colors.white
+                                              : AppColors.ink,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 14)),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                      '${o.items.length} ${s.isArabic ? 'مادة' : 'items'} • ${o.date}',
+                                      style: TextStyle(
+                                          color: Colors.grey.shade500,
+                                          fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Directionality(
+                                  textDirection: TextDirection.ltr,
+                                  child: Text(fmtThousands(o.total),
+                                      style: const TextStyle(
+                                          color: AppColors.orange,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 14)),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(_statusLabel(o.status, s.isArabic),
+                                    style: TextStyle(
+                                        color: _statusColor(o.status),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 10)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _err = null;
-    });
-    try {
-      final list = await ordersRepo.list();
-      if (mounted) setState(() => _all = list);
-    } catch (e) {
-      if (mounted) setState(() => _err = '$e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  List<FireOrder> get _shown => _filter == 'all'
-      ? _all
-      : _all.where((o) => o.status == _filter).toList();
-
-  int get _pendingCount =>
-      _all.where((o) => o.status == 'pending').length;
 
   Future<void> _setStatus(FireOrder o, String st) async {
     try {
       await ordersRepo.setStatus(o.id, st);
       if (mounted) {
-        _snack(context, st == 'accepted' ? '✅ تم القبول' : 'تم الرفض',
-            st == 'accepted' ? Colors.green : Colors.red);
-        _load();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(st == 'accepted' ? '✅ تم القبول' : 'تم الرفض',
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800)),
+          backgroundColor: st == 'accepted' ? Colors.green : Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ));
       }
     } catch (e) {
-      if (mounted) _snack(context, 'فشل: $e', Colors.red);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('فشل: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
     }
   }
 
@@ -94,11 +277,21 @@ class _OrdersFireScreenState extends State<OrdersFireScreen> {
     try {
       await ordersRepo.remove(o.id);
       if (mounted) {
-        _snack(context, 'تم الحذف', Colors.green);
-        _load();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('تم الحذف',
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800)),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ));
       }
     } catch (e) {
-      if (mounted) _snack(context, 'فشل: $e', Colors.red);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('فشل: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
     }
   }
 
@@ -327,16 +520,6 @@ class _OrdersFireScreenState extends State<OrdersFireScreen> {
     }
   }
 
-  void _snack(BuildContext c, String msg, Color color) {
-    ScaffoldMessenger.of(c).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 2),
-    ));
-  }
-
   Widget _chip(String label, String value, Color c) {
     final active = _filter == value;
     return Padding(
@@ -361,164 +544,6 @@ class _OrdersFireScreenState extends State<OrdersFireScreen> {
                   fontSize: 11)),
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<AppSettings>();
-    final dark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      backgroundColor:
-          dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(s.isArabic ? 'الطلبات' : 'Orders',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: dark ? Colors.white : AppColors.ink)),
-            ),
-            if (_pendingCount > 0)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.orange.withAlpha(30),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text('$_pendingCount',
-                    style: const TextStyle(
-                        color: AppColors.orange, fontWeight: FontWeight.w900)),
-              ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.orange),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _err != null
-              ? Center(
-                  child: Text('$_err', style: const TextStyle(color: Colors.red)))
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Row(
-                        children: [
-                          _chip(s.isArabic ? 'الكل' : 'All', 'all',
-                              AppColors.orange),
-                          _chip(s.isArabic ? 'انتظار' : 'Pending', 'pending',
-                              AppColors.orange),
-                          _chip(s.isArabic ? 'مقبول' : 'Accepted', 'accepted',
-                              AppColors.teal),
-                          _chip(s.isArabic ? 'مرفوض' : 'Rejected', 'rejected',
-                              Colors.red),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      if (_shown.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 60),
-                          child: Center(
-                            child: Text(
-                                s.isArabic ? 'لا توجد طلبات' : 'No orders',
-                                style: TextStyle(color: Colors.grey.shade500)),
-                          ),
-                        )
-                      else
-                        for (final o in _shown)
-                          InkWell(
-                            onTap: () => _details(o),
-                            borderRadius: BorderRadius.circular(18),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: dark
-                                    ? const Color(0xFF1E1E28)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                    color: _statusColor(o.status)
-                                        .withAlpha(70)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(colors: <Color>[
-                                        _statusColor(o.status),
-                                        _statusColor(o.status).withAlpha(160)
-                                      ]),
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                    child: const Icon(
-                                        Icons.shopping_bag_rounded,
-                                        color: Colors.white,
-                                        size: 20),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(o.userName,
-                                            style: TextStyle(
-                                                color: dark
-                                                    ? Colors.white
-                                                    : AppColors.ink,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 14)),
-                                        const SizedBox(height: 3),
-                                        Text('${o.items.length} ${s.isArabic ? 'مادة' : 'items'} • ${o.date}',
-                                            style: TextStyle(
-                                                color: Colors.grey.shade500,
-                                                fontSize: 11)),
-                                      ],
-                                    ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
-                                    children: [
-                                      Directionality(
-                                        textDirection: TextDirection.ltr,
-                                        child: Text(fmtThousands(o.total),
-                                            style: const TextStyle(
-                                                color: AppColors.orange,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 14)),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(_statusLabel(o.status, s.isArabic),
-                                          style: TextStyle(
-                                              color: _statusColor(o.status),
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 10)),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                    ],
-                  ),
-                ),
     );
   }
 }
