@@ -33,8 +33,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String _imgPath = '';
 
   static const String _rawBase =
-      'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI/main';
-  static const String _siteBase = 'https://ahmedbrzan.github.io/FAWORI';
+      'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main';
+  static const String _siteBase = 'https://ahmedbrzan.github.io/FAWORI-V1';
 
   @override
   void initState() {
