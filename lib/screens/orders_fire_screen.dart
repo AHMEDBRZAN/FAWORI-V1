@@ -490,6 +490,50 @@ class _OrdersFireScreenState extends State<OrdersFireScreen> {
     );
   }
 
+  Widget _infoTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required bool dark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withAlpha(dark ? 30 : 18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withAlpha(70)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Text(value,
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                    color: dark ? Colors.white : AppColors.ink,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+  }
   Color _statusColor(String st) {
     switch (st) {
       case 'pending':
