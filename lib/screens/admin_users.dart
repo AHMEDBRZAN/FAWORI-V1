@@ -399,12 +399,16 @@ class _EditDialog {
                     const SizedBox(height: 8),
                     Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: Wrap(
+                     child: Wrap(
                         children: [
-                          roleChip(s.isArabic ? 'متحكم' : 'Controller', 'ctrl',
-                              const Color(0xFFB71C1C)),
-                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
-                              Colors.red),
+                          if (isCtrl)
+                            roleChip(
+                                s.isArabic ? 'متحكم' : 'Controller',
+                                'ctrl',
+                                const Color(0xFFB71C1C)),
+                          if (isCtrl)
+                            roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
+                                Colors.red),
                           roleChip(s.isArabic ? 'وكيل' : 'Agent', 'agent',
                               const Color(0xFF9B59B6)),
                           roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
@@ -576,12 +580,16 @@ class _CreateDialog {
                     const SizedBox(height: 8),
                     Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: Wrap(
+                     child: Wrap(
                         children: [
-                          roleChip(s.isArabic ? 'متحكم' : 'Controller', 'ctrl',
-                              const Color(0xFFB71C1C)),
-                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
-                              Colors.red),
+                          if (isCtrl)
+                            roleChip(
+                                s.isArabic ? 'متحكم' : 'Controller',
+                                'ctrl',
+                                const Color(0xFFB71C1C)),
+                          if (isCtrl)
+                            roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
+                                Colors.red),
                           roleChip(s.isArabic ? 'وكيل' : 'Agent', 'agent',
                               const Color(0xFF9B59B6)),
                           roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
