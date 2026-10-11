@@ -118,14 +118,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.orange,
-        onPressed: _create,
-        icon: const Icon(Icons.person_add_rounded, color: Colors.white),
-        label: Text(s.isArabic ? 'حساب جديد' : 'New user',
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800)),
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _err != null
@@ -144,7 +136,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                     itemCount: _users.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, i) =>
