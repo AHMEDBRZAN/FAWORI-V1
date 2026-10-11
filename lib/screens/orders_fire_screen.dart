@@ -339,20 +339,29 @@ class _OrdersFireScreenState extends State<OrdersFireScreen> {
                 ),
               ),
               const SizedBox(height: 10),
+              Text('${o.date}',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    child: Text('${o.date}',
-                        style: TextStyle(
-                            color: Colors.grey.shade500, fontSize: 12)),
+                    child: _infoTile(
+                      icon: Icons.receipt_long_rounded,
+                      label: s.isArabic ? 'رقم الفاتورة' : 'Invoice No.',
+                      value: o.invoiceNo.isEmpty ? '—' : o.invoiceNo,
+                      color: const Color(0xFF9B59B6),
+                      dark: dark,
+                    ),
                   ),
-                  Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text(fmtThousands(o.total),
-                        style: const TextStyle(
-                            color: AppColors.orange,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _infoTile(
+                      icon: Icons.payments_rounded,
+                      label: s.isArabic ? 'إجمالي السعر' : 'Total',
+                      value: fmtThousands(o.total),
+                      color: AppColors.orange,
+                      dark: dark,
+                    ),
                   ),
                 ],
               ),
@@ -490,50 +499,6 @@ class _OrdersFireScreenState extends State<OrdersFireScreen> {
     );
   }
 
-  Widget _infoTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    required bool dark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withAlpha(dark ? 30 : 18),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withAlpha(70)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 10)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Directionality(
-            textDirection: TextDirection.ltr,
-            child: Text(value,
-                textAlign: TextAlign.left,
-                style: TextStyle(
-                    color: dark ? Colors.white : AppColors.ink,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14)),
-          ),
-        ],
-      ),
-    );
-  }
   Color _statusColor(String st) {
     switch (st) {
       case 'pending':
