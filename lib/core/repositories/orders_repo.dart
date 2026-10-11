@@ -70,6 +70,7 @@ class FireOrder {
 
 abstract class OrdersRepo {
   Future<String> add(FireOrder o);
+  Future<void> upsert(FireOrder o);
   Future<List<FireOrder>> list();
   Future<List<FireOrder>> mine(String uid);
   Future<List<FireOrder>> pending();
@@ -87,7 +88,11 @@ class FbOrdersRepo implements OrdersRepo {
     await ref.set(o.toMap());
     return ref.id;
   }
-
+@override
+  Future<void> upsert(FireOrder o) async {
+    await _db.collection('orders').doc(o.id).set(o.toMap());
+  }
+  
   @override
   Future<List<FireOrder>> list() async {
     final snap = await _db.collection('orders').get();
