@@ -108,6 +108,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             icon: const Icon(Icons.refresh_rounded, color: AppColors.orange),
           ),
           IconButton(
+            tooltip: s.isArabic ? 'حساب جديد' : 'New user',
+            icon: const Icon(Icons.person_add_rounded,
+                color: AppColors.orange),
+            onPressed: _create,
+          ),
+         
+         IconButton(
             tooltip: s.isArabic ? 'الطلبات' : 'Orders',
             icon: const Icon(Icons.shopping_bag_outlined,
                 color: AppColors.teal),
