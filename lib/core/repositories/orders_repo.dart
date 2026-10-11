@@ -87,7 +87,7 @@ class FbOrdersRepo implements OrdersRepo {
     await ref.set(o.toMap());
     return ref.id;
   }
-
+  
   @override
   Future<List<FireOrder>> list() async {
     final snap = await _db.collection('orders').get();
