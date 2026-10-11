@@ -22,7 +22,7 @@ class FireOrder {
   final String userRole;
   final String phone;
   final String date;
-  final String status; // pending | accepted | rejected | returned
+  final String status;
   final double total;
   final String invoiceNo;
   final List<FireOrderItem> items;
@@ -70,12 +70,15 @@ class FireOrder {
 
 abstract class OrdersRepo {
   Future<String> add(FireOrder o);
+  Future<void> upsert(FireOrder o);
   Future<List<FireOrder>> list();
   Future<List<FireOrder>> mine(String uid);
   Future<List<FireOrder>> pending();
   Future<void> setStatus(String id, String status);
   Future<void> setInvoiceNo(String id, String no);
   Future<void> remove(String id);
+  Stream<List<FireOrder>> stream();
+  Stream<List<FireOrder>> pendingStream();
 }
 
 class FbOrdersRepo implements OrdersRepo {
@@ -87,7 +90,12 @@ class FbOrdersRepo implements OrdersRepo {
     await ref.set(o.toMap());
     return ref.id;
   }
-  
+
+  @override
+  Future<void> upsert(FireOrder o) async {
+    await _db.collection('orders').doc(o.id).set(o.toMap());
+  }
+
   @override
   Future<List<FireOrder>> list() async {
     final snap = await _db.collection('orders').get();
@@ -139,6 +147,28 @@ class FbOrdersRepo implements OrdersRepo {
   @override
   Future<void> remove(String id) async {
     await _db.collection('orders').doc(id).delete();
+  }
+
+  @override
+  Stream<List<FireOrder>> stream() {
+    return _db
+        .collection('orders')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => FireOrder.fromDoc(d.id, d.data() ?? {}))
+            .toList());
+  }
+
+  @override
+  Stream<List<FireOrder>> pendingStream() {
+    return _db
+        .collection('orders')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => FireOrder.fromDoc(d.id, d.data() ?? {}))
+            .toList());
   }
 }
 
