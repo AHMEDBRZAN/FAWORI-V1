@@ -4,8 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'store_service.dart';
 
-const String _raw = 'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI/main';
-const String _site = 'https://ahmedbrzan.github.io/FAWORI';
+const String _raw = 'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main';
+const String _site = 'https://ahmedbrzan.github.io/FAWORI-V1';
 const String kOrdersPath = 'assets/data/orders.json';
 const int kPointUnit = 125000;
 const String kWriteProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
