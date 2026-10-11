@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 /// ✅ خدمة الفواتير التاريخية v2 (مواد فاوري فقط + كاش ذكي)
 class ImportService {
   static const String _raw =
-      'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI/main';
-  static const String _site = 'https://ahmedbrzan.github.io/FAWORI';
+      'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main';
+  static const String _site = 'https://ahmedbrzan.github.io/FAWORI-V1';
 
   static List<Map<String, dynamic>>? _cache;
   static String? _cacheVersion;
