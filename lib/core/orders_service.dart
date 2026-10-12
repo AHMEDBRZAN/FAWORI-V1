@@ -576,6 +576,32 @@ static Future<void> markInvoicePatched(
       await _saveSet(_kInvTombKey, tombs);
       list.removeWhere((e) => tombs.contains(e.id));
     }
+    // ✅ تطبيق التعديلات المحلية على الفواتير
+    final patches = await _loadInvPatches();
+    if (patches.isNotEmpty) {
+      for (int i = 0; i < list.length; i++) {
+        final p = patches[list[i].id];
+        if (p != null) {
+          list[i] = Invoice(
+            id: list[i].id,
+            userId: list[i].userId,
+            userName: list[i].userName,
+            no: '${p['no'] ?? list[i].no}',
+            date: '${p['date'] ?? list[i].date}',
+            total: (p['total'] as num?)?.toDouble() ?? list[i].total,
+            points: (p['points'] as num?)?.toInt() ?? list[i].points,
+            stored: (p['stored'] as num?)?.toInt() ?? list[i].stored,
+            type: list[i].type,
+            items: list[i].items,
+            legacyNo: list[i].legacyNo,
+            customerName: list[i].customerName,
+            cashier: list[i].cashier,
+            time: list[i].time,
+            source: list[i].source,
+          );
+        }
+      }
+    }
     return list;
   }
 
@@ -587,6 +613,22 @@ static Future<void> markInvoicePatched(
       tombs.removeWhere((id) => !ids.contains(id));
       await _saveSet(_kRetTombKey, tombs);
       list.removeWhere((e) => tombs.contains('${e['id']}'));
+    }
+    // ✅ تطبيق التعديلات المحلية على المرتجعات
+    final patches = await _loadRetPatches();
+    if (patches.isNotEmpty) {
+      for (int i = 0; i < list.length; i++) {
+        final id = '${list[i]['id']}';
+        final p = patches[id];
+        if (p != null) {
+          list[i] = Map<String, dynamic>.from(list[i])
+            ..['total'] = p['total'] ?? list[i]['total']
+            ..['points'] = p['points'] ?? list[i]['points']
+            ..['stored'] = p['stored'] ?? list[i]['stored']
+            ..['date'] = p['date'] ?? list[i]['date']
+            ..['no'] = p['no'] ?? list[i]['no'];
+        }
+      }
     }
     return list;
   }
