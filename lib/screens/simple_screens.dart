@@ -1624,9 +1624,13 @@ Set<String> _histDel = {};
       final i = await OrdersService.loadInvoicesFiltered();
       final r = await OrdersService.loadReturnsFiltered();
       await ImportService.loadImported();
+      final hd = await OrdersService.loadHistTombs();
+      final hp = await OrdersService.loadHistPatches();
       if (mounted) {
         setState(() {
           _altIds = alt;
+          _histDel = hd;
+          _histPatch = hp;
           _users = u.where((x) => x.role != 'guest').toList();
           _invoices = i;
           _returns = r;
@@ -1702,7 +1706,7 @@ Set<String> _histDel = {};
         .where((i) => _idsOf(u).contains(i.userId) && i.type == 'return')
         .fold(0, (s, i) => s + i.total.toInt().abs());
     // ✅ دمج السجل التاريخي من الملف المنشور بالمستودع
-    final hist = ImportService.historyForSync(u.name);
+    final hist = _histOf(u);
     for (final h in hist) {
       final t = ((h['total'] as num?)?.toDouble() ?? 0).toInt().abs();
       if (h['type'] == 'return') {
@@ -1714,8 +1718,28 @@ Set<String> _histDel = {};
     return sales - rets;
   }
 
+  String _histKey(Map<String, dynamic> h) =>
+      '${h['legacy_no'] ?? ''}|${h['date'] ?? ''}|${(h['total'] as num?)?.toDouble() ?? 0}';
+
+  List<Map<String, dynamic>> _procHist(List<Map<String, dynamic>> raw) {
+    final out = <Map<String, dynamic>>[];
+    for (final h in raw) {
+      final k = _histKey(h);
+      if (_histDel.contains(k)) continue;
+      final p = _histPatch[k];
+      if (p != null) {
+        final m = Map<String, dynamic>.from(h);
+        p.forEach((key, v) => m[key] = v);
+        out.add(m);
+      } else {
+        out.add(h);
+      }
+    }
+    return out;
+  }
+
   List<Map<String, dynamic>> _histOf(User u) =>
-      ImportService.historyForSync(u.name);
+      _procHist(ImportService.historyForSync(u.name));
 
   int _tsOfMerged(Map<String, dynamic> row) {
     final inv = row['inv'] as Invoice?;
@@ -3143,6 +3167,40 @@ Set<String> _histDel = {};
                         color: c, fontSize: 14, fontWeight: FontWeight.w900)),
               ),
             ),
+            if (s.isAdmin) ...[
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 4),
+                child: InkWell(
+                  onTap: () => _editHist(h, s),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: AppColors.teal, size: 16),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 4),
+                child: InkWell(
+                  onTap: () => _confirmDeleteHist(h, s),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded,
+                        color: Colors.red, size: 16),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
