@@ -517,7 +517,85 @@ static const String _kInvPatchKey = 'inv_patches_local';
     m[id] = patch;
     await _saveRetPatches(m);
   }
+static const String _kHistTombKey = 'hist_tombstones';
+  static const String _kHistPatchKey = 'hist_patches_local';
 
+  static Future<Set<String>> loadHistTombs() async =>
+      _loadSet(_kHistTombKey);
+
+  static Future<void> markHistDeleted(String key) async {
+    final s = await _loadSet(_kHistTombKey);
+    s.add(key);
+    await _saveSet(_kHistTombKey, s);
+  }
+
+  static Future<Map<String, Map<String, dynamic>>> loadHistPatches() async {
+    final p = await SharedPreferences.getInstance();
+    final s = p.getString(_kHistPatchKey);
+    if (s == null || s.isEmpty) return {};
+    try {
+      final raw = jsonDecode(s) as Map;
+      return raw.map((k, v) =>
+          MapEntry('$k', Map<String, dynamic>.from(v as Map)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> markHistPatched(
+      String key, Map<String, dynamic> patch) async {
+    final p = await SharedPreferences.getInstance();
+    final m = await loadHistPatches();
+    m[key] = patch;
+    await p.setString(_kHistPatchKey, jsonEncode(m));
+  }
+
+  static Future<void> publishInvoicePatch(String id) async {
+    final patches = await _loadInvPatches();
+    final p = patches[id];
+    if (p == null) return;
+    final invs = await _fetchJson('assets/data/invoices.json');
+    if (invs is List) {
+      final i = invs.indexWhere((e) => e is Map && e['id'] == id);
+      if (i >= 0) {
+        final m = Map<String, dynamic>.from(invs[i] as Map);
+        m.addAll(p);
+        invs[i] = m;
+        await _putJson('assets/data/invoices.json', invs);
+        patches.remove(id);
+        await _saveInvPatches(patches);
+      }
+    }
+  }
+
+  static Future<void> publishReturnPatch(String id, bool legacy) async {
+    final patches = await _loadRetPatches();
+    final p = patches[id];
+    if (p == null) return;
+    if (legacy) {
+      final invs = await _fetchJson('assets/data/invoices.json');
+      if (invs is List) {
+        final i = invs.indexWhere((e) => e is Map && e['id'] == id);
+        if (i >= 0) {
+          final m = Map<String, dynamic>.from(invs[i] as Map);
+          m.addAll(p);
+          invs[i] = m;
+          await _putJson('assets/data/invoices.json', invs);
+          patches.remove(id);
+          await _saveRetPatches(patches);
+        }
+      }
+    } else {
+      final rets = await loadReturns();
+      final i = rets.indexWhere((e) => '${e['id']}' == id);
+      if (i >= 0) {
+        rets[i].addAll(p);
+        await _putJson('assets/data/returns.json', rets);
+        patches.remove(id);
+        await _saveRetPatches(patches);
+      }
+    }
+  }
   static Future<void> markReturnDeleted(String id) async {
     final s = await _loadSet(_kRetTombKey);
     s.add(id);
