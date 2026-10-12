@@ -5459,6 +5459,19 @@ Set<String> _histDel = {};
   }
 }
 
+                class _ItemEdit {
+  final TextEditingController name = TextEditingController();
+  final TextEditingController qty = TextEditingController();
+  final TextEditingController unit = TextEditingController();
+  double get subtotal =>
+      (int.tryParse(qty.text) ?? 0) *
+      (double.tryParse(unit.text.replaceAll(',', '')) ?? 0);
+  void dispose() {
+    name.dispose();
+    qty.dispose();
+    unit.dispose();
+  }
+}
 class _Glow extends StatefulWidget {
   final bool glow;
   final Widget child;
