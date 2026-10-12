@@ -2326,47 +2326,6 @@ class _AdminPointsViewState extends State<AdminPointsView> {
                 ],
               ),
               const SizedBox(width: 4),
-              if (s.isController) ...[
-                IconButton(
-                  tooltip: s.isArabic ? 'تعديل' : 'Edit',
-                  icon: const Icon(Icons.edit_rounded,
-                      color: AppColors.teal, size: 20),
-                  onPressed: () async {
-                    final before = jsonEncode(u.toJson());
-                    final dynamic res = await EditUserDialog.show(context, u);
-                    final done = res == true || res is User;
-                    if (done) {
-                      // ✅ تطبيق فوري: حفظ رقعة محلية (سواء عدّل الحوار الكائن أو أعاده)
-                      Map<String, dynamic>? patch;
-                      if (res is User) {
-                        patch = res.toJson();
-                      } else {
-                        if (jsonEncode(u.toJson()) != before) {
-                          patch = u.toJson();
-                        }
-                      }
-                      if (patch != null) {
-                        await OrdersService.markUserPatched(u.id, patch);
-                      }
-                      if (mounted) setState(() {});
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(s.isArabic
-                                ? '✅ تم تحديث بيانات المستخدم'
-                                : 'User updated')));
-                      }
-                      // ✅ مزامنة صامتة بالخلفية
-                      _backgroundReload();
-                    }
-                  },
-                ),
-                IconButton(
-                  tooltip: s.isArabic ? 'حذف' : 'Delete',
-                  icon: const Icon(Icons.delete_outline_rounded,
-                      color: Colors.red, size: 20),
-                  onPressed: () => _confirmDelete(u, s),
-                ),
-              ],
             ],
           ),
         ),
@@ -3304,6 +3263,22 @@ class _AdminPointsViewState extends State<AdminPointsView> {
               Padding(
                 padding: const EdgeInsetsDirectional.only(start: 4),
                 child: InkWell(
+                  onTap: () => _editInvoice(i, s),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: AppColors.teal, size: 16),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 4),
+                child: InkWell(
                   onTap: () => _confirmDeleteInvoice(i, s),
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
@@ -3440,6 +3415,22 @@ class _AdminPointsViewState extends State<AdminPointsView> {
                           color: Colors.red,
                           fontSize: 14,
                           fontWeight: FontWeight.w900)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 4),
+                child: InkWell(
+                  onTap: () => _editReturn(r, s),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: AppColors.teal, size: 16),
+                  ),
                 ),
               ),
               Padding(
