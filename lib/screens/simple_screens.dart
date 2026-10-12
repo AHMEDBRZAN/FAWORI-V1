@@ -1593,12 +1593,38 @@ class _AdminPointsViewState extends State<AdminPointsView> {
   Future<void> _load({bool quiet = false}) async {
     if (!quiet) setState(() => _loading = true);
     try {
-      final u = await OrdersService.loadUsersFiltered();
+      final fb = await userRepo.listUsers();
+      final oldUs = await OrdersService.loadUsersFiltered();
+      final alt = <String, Set<String>>{};
+      for (final a in fb) {
+        final set = <String>{a.id};
+        for (final ou in oldUs) {
+          if (ou.phone.trim().isNotEmpty &&
+              ou.phone.trim() == a.phone.trim()) {
+            set.add(ou.id);
+          } else if (ou.name.trim() == a.name.trim()) {
+            set.add(ou.id);
+          }
+        }
+        alt[a.id] = set;
+      }
+      final u = fb
+          .map((a) => User(
+                id: a.id,
+                name: a.name,
+                role: a.role,
+                phone: a.phone,
+                password: '',
+                points: a.points,
+                stored: a.stored,
+              ))
+          .toList();
       final i = await OrdersService.loadInvoicesFiltered();
       final r = await OrdersService.loadReturnsFiltered();
       await ImportService.loadImported();
       if (mounted) {
         setState(() {
+          _altIds = alt;
           _users = u.where((x) => x.role != 'guest').toList();
           _invoices = i;
           _returns = r;
@@ -1629,9 +1655,11 @@ class _AdminPointsViewState extends State<AdminPointsView> {
     return 'عميل';
   }
 
+  Set<String> _idsOf(User u) => _altIds[u.id] ?? {u.id};
+
   List<Invoice> _salesOf(User u) {
     final list = _invoices
-        .where((i) => i.userId == u.id && i.type == 'sale')
+        .where((i) => _idsOf(u).contains(i.userId) && i.type == 'sale')
         .toList();
     list.sort((a, b) => _tsId(b.id).compareTo(_tsId(a.id)));
     return list;
@@ -1639,9 +1667,9 @@ class _AdminPointsViewState extends State<AdminPointsView> {
 
   List<Map<String, dynamic>> _returnsOf(User u) {
     final list = <Map<String, dynamic>>[
-      ..._returns.where((r) => r['userId'] == u.id),
+      ..._returns.where((r) => _idsOf(u).contains('${r['userId']}')),
       for (final i in _invoices
-          .where((x) => x.userId == u.id && x.type == 'return'))
+          .where((x) => _idsOf(u).contains(x.userId) && x.type == 'return'))
         {
           'id': i.id,
           'legacy': true,
@@ -1663,13 +1691,13 @@ class _AdminPointsViewState extends State<AdminPointsView> {
 
   int _netOf(User u) {
     int sales = _invoices
-        .where((i) => i.userId == u.id && i.type == 'sale')
+        .where((i) => _idsOf(u).contains(i.userId) && i.type == 'sale')
         .fold(0, (s, i) => s + i.total.toInt());
     int rets = _returns
-        .where((r) => r['userId'] == u.id)
+        .where((r) => _idsOf(u).contains('${r['userId']}'))
         .fold(0, (s, r) => s + ((r['total'] as num?)?.toInt() ?? 0).abs());
     rets += _invoices
-        .where((i) => i.userId == u.id && i.type == 'return')
+        .where((i) => _idsOf(u).contains(i.userId) && i.type == 'return')
         .fold(0, (s, i) => s + i.total.toInt().abs());
     // ✅ دمج السجل التاريخي من الملف المنشور بالمستودع
     final hist = ImportService.historyForSync(u.name);
@@ -1937,8 +1965,8 @@ class _AdminPointsViewState extends State<AdminPointsView> {
         ),
         content: Text(
             s.isArabic
-                ? 'سيُحذف المستخدم "${u.name}" مع جميع فواتيره ومرتجعاته وطلباته. لا يمكن التراجع!'
-                : 'User "${u.name}" will be deleted with all invoices, returns and orders. Cannot undo!',
+                ? 'ستُحذف جميع فواتير ومرتجعات "${u.name}". لن يُحذف الحساب نفسه. لا يمكن التراجع!'
+                : 'All invoices and returns of "${u.name}" will be deleted. Account stays. Cannot undo!',
             style: const TextStyle(fontWeight: FontWeight.w700)),
         actions: [
           TextButton(
@@ -1954,9 +1982,8 @@ class _AdminPointsViewState extends State<AdminPointsView> {
       ),
     );
     if (ok != true) return;
-    // ✅ 1) إخفاء فوري محلياً (طوابع حذف لكل ما يخص المستخدم)
-    await OrdersService.markUserDeleted(u.id);
-    for (final i in _invoices.where((x) => x.userId == u.id)) {
+    // ✅ 1) طوابع حذف للفواتير والمرتجعات فقط — الحساب يبقى
+    for (final i in _invoices.where((x) => _idsOf(u).contains(x.userId))) {
       await OrdersService.markInvoiceDeleted(i.id);
     }
     for (final r in _returnsOf(u)) {
@@ -1966,25 +1993,20 @@ class _AdminPointsViewState extends State<AdminPointsView> {
         await OrdersService.markReturnDeleted('${r['id']}');
       }
     }
-    try {
-      final os = await OrdersService.loadOrders();
-      for (final o in os.where((x) => x.userId == u.id)) {
-        await OrdersService.markOrderDeleted(o.id);
-      }
-    } catch (_) {}
     // ✅ تحديث فوري للشاشة بدون انتظار السيرفر
     setState(() {
-      _users.removeWhere((x) => x.id == u.id);
       if (_sel?.id == u.id) _sel = null;
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(s.isArabic
-              ? '🗑️ تم حذف ${u.name} وكل فواتيره'
-              : 'Deleted ${u.name} and all invoices')));
+              ? '🗑️ تم حذف فواتير ${u.name} — الحساب باقٍ'
+              : 'Invoices of ${u.name} deleted — account kept')));
     }
     // ✅ 2) حذف من المستودع بالخلفية (صامت — بدون تعليق الواجهة)
-    OrdersService.deleteUserAll(u.id).catchError((_) {});
+    for (final i in _invoices.where((x) => _idsOf(u).contains(x.userId))) {
+      OrdersService.deleteInvoice(i.id).catchError((_) {});
+    }
     _backgroundReload();
   }
 
