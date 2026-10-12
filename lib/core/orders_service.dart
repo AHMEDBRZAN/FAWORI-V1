@@ -452,7 +452,8 @@ class OrdersService {
   // ====================================================
   static const String _kInvTombKey = 'inv_tombstones';
   static const String _kRetTombKey = 'ret_tombstones';
-
+static const String _kInvPatchKey = 'inv_patches_local';
+  static const String _kRetPatchKey = 'ret_patches_local';
   static Future<Set<String>> _loadSet(String key) async {
     final p = await SharedPreferences.getInstance();
     return (p.getStringList(key) ?? []).toSet();
