@@ -642,11 +642,32 @@ class _CreateDialog {
 
     if (ok != true) return false;
     try {
+      final existing = await userRepo.listUsers();
+      if (existing.any((u) => u.phone == phoneC.text.trim())) {
+        _snack(context,
+            s.isArabic
+                ? 'رقم الهاتف موجود مسبقاً في قائمة المستخدمين'
+                : 'Phone already in users list',
+            Colors.red, Icons.warning_rounded);
+        return false;
+      }
       await userRepo.createUser(
           phoneC.text.trim(), nameC.text.trim(), passC.text, role);
       return true;
     } catch (e) {
-      _snack(context, '$e', Colors.red, Icons.error_rounded);
+      String msg = '$e';
+      if (msg.contains('email-already-in-use')) {
+        msg = s.isArabic
+            ? 'الرقم محجوز بحساب قديم محذوف. احذفه من Firebase Authentication ثم أعد المحاولة.'
+            : 'Phone blocked by an old deleted account. Remove it in Firebase Auth.';
+      } else if (msg.contains('weak-password')) {
+        msg = s.isArabic
+            ? 'كلمة السر ضعيفة: 6 أحرف على الأقل'
+            : 'Weak password: min 6 chars';
+      } else if (msg.contains('network-request-failed')) {
+        msg = s.isArabic ? 'تحقق من اتصال الإنترنت' : 'Network error';
+      }
+      _snack(context, msg, Colors.red, Icons.error_rounded);
       return false;
     }
   }
