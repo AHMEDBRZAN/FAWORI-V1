@@ -7,6 +7,7 @@ import '../core/app_settings.dart';
 import '../core/favorites.dart';
 import '../core/import_service.dart';
 import '../core/orders_service.dart';
+import '../core/repositories/user_repo.dart';
 import '../core/store_service.dart';
 import '../core/theme.dart';
 import '../data/sample_data.dart';
