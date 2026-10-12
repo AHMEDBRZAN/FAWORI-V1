@@ -1571,6 +1571,7 @@ class _AdminPointsViewState extends State<AdminPointsView> {
 Set<String> _histDel = {};
   Map<String, Map<String, dynamic>> _histPatch = {};
   Map<String, Set<String>> _altIds = {};
+  String? _activeCard;
   List<Invoice> _invoices = [];
   List<Map<String, dynamic>> _returns = [];
   bool _loading = true;
