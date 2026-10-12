@@ -468,7 +468,17 @@ class OrdersService {
     s.add(id);
     await _saveSet(_kInvTombKey, s);
   }
+static Future<void> markInvoicePatched(
+      String id, Map<String, dynamic> patch) async {
+    _invPatch[id] = patch;
+    _saveLocal();
+  }
 
+  static Future<void> markReturnPatched(
+      String id, Map<String, dynamic> patch) async {
+    _retPatch[id] = patch;
+    _saveLocal();
+  }
   static Future<void> markReturnDeleted(String id) async {
     final s = await _loadSet(_kRetTombKey);
     s.add(id);
