@@ -1569,9 +1569,6 @@ class AdminPointsView extends StatefulWidget {
 class _AdminPointsViewState extends State<AdminPointsView> {
   List<User> _users = [];
  Map<String, Set<String>> _altIds = {};
-String? _activeCard;
-  Set<String> _histDel = {};
-  Map<String, Map<String, dynamic>> _histPatch = {};
   List<Invoice> _invoices = [];
   List<Map<String, dynamic>> _returns = [];
   bool _loading = true;
@@ -1625,13 +1622,9 @@ String? _activeCard;
       final i = await OrdersService.loadInvoicesFiltered();
       final r = await OrdersService.loadReturnsFiltered();
       await ImportService.loadImported();
-      final hd = await OrdersService.loadHistTombs();
-      final hp = await OrdersService.loadHistPatches();
       if (mounted) {
         setState(() {
           _altIds = alt;
-          _histDel = hd;
-          _histPatch = hp;
           _users = u.where((x) => x.role != 'guest').toList();
           _invoices = i;
           _returns = r;
@@ -1707,7 +1700,7 @@ String? _activeCard;
         .where((i) => _idsOf(u).contains(i.userId) && i.type == 'return')
         .fold(0, (s, i) => s + i.total.toInt().abs());
     // ✅ دمج السجل التاريخي من الملف المنشور بالمستودع
-    final hist = _histOf(u);
+    final hist = ImportService.historyForSync(u.name);
     for (final h in hist) {
       final t = ((h['total'] as num?)?.toDouble() ?? 0).toInt().abs();
       if (h['type'] == 'return') {
@@ -1719,28 +1712,8 @@ String? _activeCard;
     return sales - rets;
   }
 
-  String _histKey(Map<String, dynamic> h) =>
-      '${h['legacy_no'] ?? ''}|${h['date'] ?? ''}|${(h['total'] as num?)?.toDouble() ?? 0}';
-
-  List<Map<String, dynamic>> _procHist(List<Map<String, dynamic>> raw) {
-    final out = <Map<String, dynamic>>[];
-    for (final h in raw) {
-      final k = _histKey(h);
-      if (_histDel.contains(k)) continue;
-      final p = _histPatch[k];
-      if (p != null) {
-        final m = Map<String, dynamic>.from(h);
-        p.forEach((key, v) => m[key] = v);
-        out.add(m);
-      } else {
-        out.add(h);
-      }
-    }
-    return out;
-  }
-
   List<Map<String, dynamic>> _histOf(User u) =>
-      _procHist(ImportService.historyForSync(u.name));
+      ImportService.historyForSync(u.name);
 
   int _tsOfMerged(Map<String, dynamic> row) {
     final inv = row['inv'] as Invoice?;
@@ -2036,663 +2009,7 @@ String? _activeCard;
     }
     _backgroundReload();
   }
-/// 📋 تعديل الفاتورة بجدول المواد: حذف وإضافة مواد وحساب تلقائي
-  Future<void> _editInvoiceTable(
-    AppSettings s, {
-    required String key,
-    required bool isHist,
-    Invoice? inv,
-    Map<String, dynamic>? hist,
-  }) async {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final srcItems = isHist
-        ? List<Map<String, dynamic>>.from((hist?['items'] as List? ?? [])
-            .map((e) => Map<String, dynamic>.from(e as Map)))
-        : (inv?.items ?? const <InvoiceItem>[])
-            .map((it) => <String, dynamic>{
-                  'name': it.name,
-                  'qty': it.qty,
-                  'unit_price': it.unitPrice,
-                })
-            .toList();
-    final eds = <_ItemEdit>[];
-    for (final m in srcItems) {
-      final e = _ItemEdit();
-      e.name.text = '${m['name'] ?? ''}';
-      e.qty.text = '${(m['qty'] as num?)?.toInt() ?? 1}';
-      final up = (m['unit_price'] as num?)?.toDouble() ??
-          (m['price'] as num?)?.toDouble() ??
-          0;
-      e.unit.text = up == 0 ? '' : '${up.toInt()}';
-      eds.add(e);
-    }
-    final dateC = TextEditingController(
-        text: isHist ? '${hist?['date'] ?? ''}' : (inv?.date ?? ''));
-    final noC = TextEditingController(
-        text: isHist ? '${hist?['legacy_no'] ?? ''}' : (inv?.no ?? ''));
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          int total = 0;
-          for (final e in eds) {
-            total += e.subtotal.toInt();
-          }
-          return Dialog(
-            backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.edit_rounded,
-                            color: AppColors.teal),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                              s.isArabic ? 'تعديل الفاتورة' : 'Edit invoice',
-                              style: const TextStyle(
-                                  color: AppColors.teal,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _editField(noC,
-                              s.isArabic ? 'رقم الفاتورة' : 'No',
-                              Icons.receipt_rounded, AppColors.orange, dark),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _editField(dateC,
-                              s.isArabic ? 'التاريخ' : 'Date',
-                              Icons.calendar_today_rounded,
-                              AppColors.teal, dark),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                                child: Text(
-                                    s.isArabic ? 'المادة' : 'Item',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800))),
-                            SizedBox(
-                                width: 44,
-                                child: Text(s.isArabic ? 'العدد' : 'Qty',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800))),
-                            SizedBox(
-                                width: 70,
-                                child: Text(s.isArabic ? 'مفرد' : 'Unit',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800))),
-                            SizedBox(
-                                width: 70,
-                                child: Text(s.isArabic ? 'اجمالي' : 'Total',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800))),
-                            const SizedBox(width: 26),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        for (int i = 0; i < eds.length; i++)
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: dark
-                                  ? const Color(0xFF26262E)
-                                  : const Color(0xFFFFFDF9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: AppColors.orange.withAlpha(50)),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: eds[i].name,
-                                    style: TextStyle(
-                                        color: dark
-                                            ? Colors.white
-                                            : AppColors.ink,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700),
-                                    decoration: const InputDecoration(
-                                        isDense: true,
-                                        border: InputBorder.none),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 44,
-                                  child: TextField(
-                                    controller: eds[i].qty,
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (_) => setSt(() {}),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: dark
-                                            ? Colors.white
-                                            : AppColors.ink,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800),
-                                    decoration: const InputDecoration(
-                                        isDense: true,
-                                        border: InputBorder.none),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 70,
-                                  child: TextField(
-                                    controller: eds[i].unit,
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (_) => setSt(() {}),
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                        color: AppColors.teal,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800),
-                                    decoration: const InputDecoration(
-                                        isDense: true,
-                                        border: InputBorder.none),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 70,
-                                  child: Directionality(
-                                    textDirection: TextDirection.ltr,
-                                    child: Text(fmtThousands(eds[i].subtotal),
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                            color: AppColors.orange,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w900)),
-                                  ),
-                                ),
-                                InkWell(
-                                  onTap: () => setSt(() {
-                                    eds[i].dispose();
-                                    eds.removeAt(i);
-                                  }),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: BoxDecoration(
-                                        color: Colors.red.withAlpha(20),
-                                        borderRadius:
-                                            BorderRadius.circular(8)),
-                                    child: const Icon(
-                                        Icons.delete_outline_rounded,
-                                        color: Colors.red,
-                                        size: 15),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: TextButton.icon(
-                            onPressed: () => setSt(() => eds.add(_ItemEdit())),
-                            icon: const Icon(Icons.add_rounded, size: 16),
-                            label: Text(s.isArabic ? 'إضافة مادة' : 'Add item'),
-                            style: TextButton.styleFrom(
-                                foregroundColor: AppColors.teal),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.orange.withAlpha(dark ? 30 : 18),
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Text(s.isArabic ? 'الإجمالي' : 'Total',
-                                style: TextStyle(
-                                    color: dark
-                                        ? Colors.white
-                                        : AppColors.ink,
-                                    fontWeight: FontWeight.w900)),
-                            const Spacer(),
-                            Directionality(
-                              textDirection: TextDirection.ltr,
-                              child: Text(fmtThousands(total),
-                                  style: const TextStyle(
-                                      color: AppColors.orange,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 16)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Text(
-                                s.isArabic
-                                    ? 'النقاط والرصيد'
-                                    : 'Points & stored',
-                                style: TextStyle(
-                                    color: dark
-                                        ? Colors.white
-                                        : AppColors.ink,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12)),
-                            const Spacer(),
-                            Directionality(
-                              textDirection: TextDirection.ltr,
-                              child: Text(
-                                  '${total ~/ kPointUnit} | ${total % kPointUnit}',
-                                  style: const TextStyle(
-                                      color: AppColors.teal,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.grey.shade700,
-                                    foregroundColor: Colors.white),
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: Text(s.isArabic ? 'إلغاء' : 'Cancel'),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.teal,
-                                    foregroundColor: Colors.white),
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: Text(s.isArabic ? 'حفظ' : 'Save'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-
-    if (ok != true) {
-      for (final e in eds) {
-        e.dispose();
-      }
-      return;
-    }
-    final itemsOut = eds
-        .map((e) => {
-              'name': e.name.text.trim(),
-              'qty': int.tryParse(e.qty.text) ?? 0,
-              'price': 0,
-              'unit_price':
-                  double.tryParse(e.unit.text.replaceAll(',', '')) ?? 0,
-              'subtotal': e.subtotal,
-            })
-        .toList();
-    int total = 0;
-    for (final m in itemsOut) {
-      total += (m['subtotal'] as double).toInt();
-    }
-    final patch = <String, dynamic>{
-      'items': itemsOut,
-      'total': total.toDouble(),
-      'points': total ~/ kPointUnit,
-      'stored': total % kPointUnit,
-      'date': dateC.text.trim(),
-      if (isHist) 'legacy_no': noC.text.trim(),
-      if (!isHist) 'no': noC.text.trim(),
-    };
-    if (isHist) {
-      await OrdersService.markHistPatched(key, patch);
-    } else {
-      await OrdersService.markInvoicePatched(key, patch);
-      await OrdersService.publishInvoicePatch(key);
-    }
-    for (final e in eds) {
-      e.dispose();
-    }
-    if (mounted) setState(() {});
-    _backgroundReload();
-  }
-  Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final totalCtrl = TextEditingController(
-        text: '${((h['total'] as num?)?.toDouble() ?? 0).toInt()}');
-    final dateCtrl = TextEditingController(text: '${h['date'] ?? ''}');
-    final noCtrl = TextEditingController(text: '${h['legacy_no'] ?? ''}');
-    final pointsCtrl =
-        TextEditingController(text: '${(h['points'] as num?)?.toInt() ?? 0}');
-    final storedCtrl =
-        TextEditingController(text: '${(h['stored'] as num?)?.toInt() ?? 0}');
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(s.isArabic ? 'تعديل سجل الحاسبة' : 'Edit PC record',
-            style: const TextStyle(
-                color: AppColors.teal, fontWeight: FontWeight.w900)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _editField(noCtrl, s.isArabic ? 'رقم الفاتورة' : 'Invoice No',
-                  Icons.receipt_rounded, AppColors.orange, dark),
-              const SizedBox(height: 10),
-              _editField(totalCtrl, s.isArabic ? 'الإجمالي' : 'Total',
-                  Icons.payments_rounded, AppColors.orange, dark,
-                  kb: TextInputType.number),
-              const SizedBox(height: 10),
-              _editField(dateCtrl, s.isArabic ? 'التاريخ' : 'Date',
-                  Icons.calendar_today_rounded, AppColors.teal, dark),
-              const SizedBox(height: 10),
-              _editField(pointsCtrl, s.isArabic ? 'النقاط' : 'Points',
-                  Icons.stars_rounded, AppColors.teal, dark,
-                  kb: TextInputType.number),
-              const SizedBox(height: 10),
-              _editField(storedCtrl, s.isArabic ? 'الرصيد المخزن' : 'Stored',
-                  Icons.inventory_rounded, const Color(0xFF9B59B6), dark,
-                  kb: TextInputType.number),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.isArabic ? 'حفظ' : 'Save'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    final patch = <String, dynamic>{
-      'total': (double.tryParse(totalCtrl.text.replaceAll(',', '')) ?? 0),
-      'points': int.tryParse(pointsCtrl.text) ?? 0,
-      'stored': int.tryParse(storedCtrl.text) ?? 0,
-      'date': dateCtrl.text.trim(),
-      'legacy_no': noCtrl.text.trim(),
-    };
-    await OrdersService.markHistPatched(_histKey(h), patch);
-    if (mounted) setState(() {});
-    _backgroundReload();
-  }
-
-  Future<void> _confirmDeleteHist(
-      Map<String, dynamic> h, AppSettings s) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.isArabic ? 'حذف سجل الحاسبة' : 'Delete PC record'),
-        content: Text(s.isArabic
-            ? 'سيُحذف هذا السجل من النقاط والرصيد. لا يمكن التراجع.'
-            : 'This record will be removed from points. Cannot undo.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(s.isArabic ? 'حذف' : 'Delete')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await OrdersService.markHistDeleted(_histKey(h));
-    if (mounted) setState(() {});
-    _backgroundReload();
-  }
-  Future<void> _editInvoice(Invoice i, AppSettings s) async {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final totalCtrl = TextEditingController(text: '${i.total}');
-    final dateCtrl = TextEditingController(text: i.date);
-    final noCtrl = TextEditingController(text: i.no);
-    final pointsCtrl = TextEditingController(text: '${i.points}');
-    final storedCtrl = TextEditingController(text: '${i.stored}');
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(s.isArabic ? 'تعديل الفاتورة' : 'Edit invoice',
-            style: const TextStyle(
-                color: AppColors.teal, fontWeight: FontWeight.w900)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _editField(noCtrl, s.isArabic ? 'رقم الفاتورة' : 'Invoice No',
-                  Icons.receipt_rounded, AppColors.orange, dark),
-              const SizedBox(height: 10),
-              _editField(totalCtrl, s.isArabic ? 'الإجمالي' : 'Total',
-                  Icons.payments_rounded, AppColors.orange, dark,
-                  kb: TextInputType.number),
-              const SizedBox(height: 10),
-              _editField(dateCtrl, s.isArabic ? 'التاريخ' : 'Date',
-                  Icons.calendar_today_rounded, AppColors.teal, dark),
-              const SizedBox(height: 10),
-              _editField(pointsCtrl, s.isArabic ? 'النقاط' : 'Points',
-                  Icons.stars_rounded, AppColors.teal, dark,
-                  kb: TextInputType.number),
-              const SizedBox(height: 10),
-              _editField(storedCtrl, s.isArabic ? 'الرصيد المخزن' : 'Stored',
-                  Icons.inventory_rounded, const Color(0xFF9B59B6), dark,
-                  kb: TextInputType.number),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.teal, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.isArabic ? 'حفظ' : 'Save'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      final newTotal =
-          double.tryParse(totalCtrl.text.replaceAll(',', '')) ?? i.total;
-      final newPoints = int.tryParse(pointsCtrl.text) ?? i.points;
-      final newStored = int.tryParse(storedCtrl.text) ?? i.stored;
-      final patch = <String, dynamic>{
-        'total': newTotal,
-        'points': newPoints,
-        'stored': newStored,
-        'date': dateCtrl.text.trim(),
-        'no': noCtrl.text.trim(),
-      };
-      await OrdersService.markInvoicePatched(i.id, patch);
-      await OrdersService.publishInvoicePatch(i.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(s.isArabic
-                ? '✅ تم تحديث الفاتورة'
-                : 'Invoice updated')));
-      }
-      _backgroundReload();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('فشل: $e')));
-      }
-    }
-  }
-
-  Future<void> _editReturn(Map<String, dynamic> r, AppSettings s) async {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final totalCtrl = TextEditingController(
-        text: '${((r['total'] as num?)?.toInt() ?? 0).abs()}');
-    final dateCtrl = TextEditingController(text: '${r['date'] ?? ''}');
-    final noCtrl = TextEditingController(text: '${r['no'] ?? ''}');
-    final pointsCtrl = TextEditingController(
-        text: '${((r['points'] as num?)?.toInt() ?? 0).abs()}');
-    final storedCtrl = TextEditingController(
-        text: '${((r['stored'] as num?)?.toInt() ?? 0).abs()}');
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(s.isArabic ? 'تعديل المرتجع' : 'Edit return',
-            style: const TextStyle(
-                color: Color(0xFF9B59B6), fontWeight: FontWeight.w900)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _editField(noCtrl, s.isArabic ? 'رقم المرتجع' : 'Return No',
-                  Icons.receipt_rounded, Color(0xFF9B59B6), dark),
-              const SizedBox(height: 10),
-              _editField(totalCtrl, s.isArabic ? 'الإجمالي' : 'Total',
-                  Icons.payments_rounded, Colors.red, dark,
-                  kb: TextInputType.number),
-              const SizedBox(height: 10),
-              _editField(dateCtrl, s.isArabic ? 'التاريخ' : 'Date',
-                  Icons.calendar_today_rounded, AppColors.teal, dark),
-              const SizedBox(height: 10),
-              _editField(pointsCtrl, s.isArabic ? 'النقاط' : 'Points',
-                  Icons.stars_rounded, Colors.red, dark,
-                  kb: TextInputType.number),
-              const SizedBox(height: 10),
-              _editField(storedCtrl, s.isArabic ? 'الرصيد المخزن' : 'Stored',
-                  Icons.inventory_rounded, Colors.red, dark,
-                  kb: TextInputType.number),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF9B59B6),
-                foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.isArabic ? 'حفظ' : 'Save'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      final newTotal =
-          int.tryParse(totalCtrl.text.replaceAll(',', '')) ?? 0;
-      final newPoints = int.tryParse(pointsCtrl.text) ?? 0;
-      final newStored = int.tryParse(storedCtrl.text) ?? 0;
-      final patch = <String, dynamic>{
-        'total': -newTotal,
-        'points': -newPoints,
-        'stored': -newStored,
-        'date': dateCtrl.text.trim(),
-        'no': noCtrl.text.trim(),
-      };
-      final id = '${r['id']}';
-      if (r['legacy'] == true) {
-        await OrdersService.markInvoicePatched(id, patch);
-        await OrdersService.publishInvoicePatch(id);
-      } else {
-        await OrdersService.markReturnPatched(id, patch);
-        await OrdersService.publishReturnPatch(id, false);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                s.isArabic ? '✅ تم تحديث المرتجع' : 'Return updated')));
-      }
-      _backgroundReload();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('فشل: $e')));
-      }
-    }
-  }
-
-  Widget _editField(TextEditingController c, String hint, IconData icon,
-      Color color, bool dark,
-      {TextInputType? kb}) {
-    return TextField(
-      controller: c,
-      keyboardType: kb,
-      style: TextStyle(color: dark ? Colors.white : AppColors.ink),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-            color: dark ? Colors.grey.shade500 : Colors.grey.shade400,
-            fontSize: 12),
-        prefixIcon: Icon(icon, color: color, size: 20),
-        filled: true,
-        fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none),
-      ),
-    );
-  }
   Future<void> _confirmDeleteInvoice(Invoice i, AppSettings s) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -3009,6 +2326,47 @@ String? _activeCard;
                 ],
               ),
               const SizedBox(width: 4),
+              if (s.isController) ...[
+                IconButton(
+                  tooltip: s.isArabic ? 'تعديل' : 'Edit',
+                  icon: const Icon(Icons.edit_rounded,
+                      color: AppColors.teal, size: 20),
+                  onPressed: () async {
+                    final before = jsonEncode(u.toJson());
+                    final dynamic res = await EditUserDialog.show(context, u);
+                    final done = res == true || res is User;
+                    if (done) {
+                      // ✅ تطبيق فوري: حفظ رقعة محلية (سواء عدّل الحوار الكائن أو أعاده)
+                      Map<String, dynamic>? patch;
+                      if (res is User) {
+                        patch = res.toJson();
+                      } else {
+                        if (jsonEncode(u.toJson()) != before) {
+                          patch = u.toJson();
+                        }
+                      }
+                      if (patch != null) {
+                        await OrdersService.markUserPatched(u.id, patch);
+                      }
+                      if (mounted) setState(() {});
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(s.isArabic
+                                ? '✅ تم تحديث بيانات المستخدم'
+                                : 'User updated')));
+                      }
+                      // ✅ مزامنة صامتة بالخلفية
+                      _backgroundReload();
+                    }
+                  },
+                ),
+                IconButton(
+                  tooltip: s.isArabic ? 'حذف' : 'Delete',
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: Colors.red, size: 20),
+                  onPressed: () => _confirmDelete(u, s),
+                ),
+              ],
             ],
           ),
         ),
@@ -3668,175 +3026,8 @@ String? _activeCard;
     );
   }
 
-  /// ✅ بطاقة السجل التاريخي — الأزرار تظهر بالنقر المطوّل فقط
+  /// ✅ بطاقة السجل التاريخي — بنفس شكل بطاقات الشراء/المرتجع تماماً
   Widget _histCard(Map<String, dynamic> h, AppSettings s, bool dark) {
-    final total = (h['total'] as num?)?.toDouble() ?? 0;
-    final pts = (h['points'] as num?)?.toInt() ?? 0;
-    final neg = total < 0;
-    final cashier = '${h['cashier'] ?? ''}'.trim();
-    final c = neg ? Colors.red : AppColors.teal;
-    final key = _histKey(h);
-    final active = _activeCard == key;
-    return GestureDetector(
-      onLongPress: () => setState(() => _activeCard = active ? null : key),
-      child: Pressable(
-        onTap: () {
-          if (_activeCard != null) {
-            setState(() => _activeCard = null);
-            return;
-          }
-          _openHistDetails(h, s, dark);
-        },
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: dark
-                  ? <Color>[const Color(0xFF1E1E28), const Color(0xFF26262E)]
-                  : <Color>[Colors.white, const Color(0xFFFFF8F1)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: c.withAlpha(50)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(dark ? 50 : 10),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: neg
-                        ? <Color>[Colors.red, const Color(0xFFB02A2A)]
-                        : <Color>[AppColors.teal, const Color(0xFF0AA87A)],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                        color: c.withAlpha(40),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2)),
-                  ],
-                ),
-                child: Text(
-                    neg
-                        ? (s.isArabic ? 'مرتجع' : 'Return')
-                        : (s.isArabic ? 'شراء' : 'Sale'),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(
-                          cashier.isEmpty
-                              ? '${h['date'] ?? ''}'
-                              : '${h['date'] ?? ''} • $cashier',
-                          style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 11)),
-                    ),
-                    const SizedBox(height: 4),
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text(
-                          neg
-                              ? '-${fmtThousands(total.abs())}'
-                              : fmtThousands(total),
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: neg
-                                  ? Colors.red.shade300
-                                  : (dark ? Colors.white : AppColors.ink))),
-                    ),
-                    const SizedBox(height: 2),
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: Text('${h['legacy_no'] ?? ''}',
-                          style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 10)),
-                    ),
-                    const SizedBox(height: 4),
-                    _hintChip(s.isArabic ? 'من الحاسبة' : 'From PC',
-                        Icons.computer_rounded, const Color(0xFF9B59B6)),
-                  ],
-                ),
-              ),
-              if (s.isAdmin && active) ...[
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 4),
-                  child: InkWell(
-                    onTap: () =>
-                        _editInvoiceTable(s, key: key, isHist: true, hist: h),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.teal.withAlpha(20),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.edit_rounded,
-                          color: AppColors.teal, size: 16),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 4),
-                  child: InkWell(
-                    onTap: () => _confirmDeleteHist(h, s),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withAlpha(20),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.delete_outline_rounded,
-                          color: Colors.red, size: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: <Color>[c.withAlpha(60), c.withAlpha(25)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: c.withAlpha(120)),
-                ),
-                child: Directionality(
-                  textDirection: TextDirection.ltr,
-                  child: Text(pts >= 0 ? '+$pts' : '-${pts.abs()}',
-                      style: TextStyle(
-                          color: c, fontSize: 14, fontWeight: FontWeight.w900)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
     final total = (h['total'] as num?)?.toDouble() ?? 0;
     final pts = (h['points'] as num?)?.toInt() ?? 0;
     final neg = total < 0;
@@ -3950,40 +3141,6 @@ String? _activeCard;
                         color: c, fontSize: 14, fontWeight: FontWeight.w900)),
               ),
             ),
-            if (s.isAdmin) ...[
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: InkWell(
-                  onTap: () => _editHist(h, s),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.teal.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.edit_rounded,
-                        color: AppColors.teal, size: 16),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: InkWell(
-                  onTap: () => _confirmDeleteHist(h, s),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.delete_outline_rounded,
-                        color: Colors.red, size: 16),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -4032,171 +3189,7 @@ String? _activeCard;
 
   Widget _saleRow(Invoice i, AppSettings s, bool dark, bool glow,
       {String hint = ''}) {
-    final active = _activeCard == i.id;
     return _Glow(
-      glow: glow,
-      child: GestureDetector(
-        onLongPress: () =>
-            setState(() => _activeCard = active ? null : i.id),
-        child: Pressable(
-          onTap: () {
-            if (_activeCard != null) {
-              setState(() => _activeCard = null);
-              return;
-            }
-            _openSaleDetails(i, s, dark);
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: dark
-                    ? <Color>[
-                        const Color(0xFF1E1E28),
-                        const Color(0xFF26262E),
-                      ]
-                    : <Color>[Colors.white, const Color(0xFFFFF8F1)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.teal.withAlpha(50)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(dark ? 50 : 10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: <Color>[AppColors.teal, Color(0xFF0AA87A)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.teal.withAlpha(40),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Text(s.isArabic ? 'شراء' : 'Sale',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(_dmy(i.date),
-                            style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 11)),
-                      ),
-                      const SizedBox(height: 4),
-                      Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(fmtThousands(i.total),
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: dark ? Colors.white : AppColors.ink)),
-                      ),
-                      if (i.no.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Directionality(
-                          textDirection: TextDirection.ltr,
-                          child: Text(i.no,
-                              style: TextStyle(
-                                  color: Colors.grey.shade500, fontSize: 10)),
-                        ),
-                      ],
-                      if (hint.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        _hintChip(hint, Icons.shopping_cart_checkout_rounded,
-                            AppColors.teal),
-                      ],
-                    ],
-                  ),
-                ),
-                if (s.isAdmin && active) ...[
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(start: 4),
-                    child: InkWell(
-                      onTap: () => _editInvoiceTable(s,
-                          key: i.id, isHist: false, inv: i),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.teal.withAlpha(20),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.edit_rounded,
-                            color: AppColors.teal, size: 16),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(start: 4),
-                    child: InkWell(
-                      onTap: () => _confirmDeleteInvoice(i, s),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withAlpha(20),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.delete_outline_rounded,
-                            color: Colors.red, size: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        AppColors.teal.withAlpha(60),
-                        AppColors.teal.withAlpha(25),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.teal.withAlpha(120)),
-                  ),
-                  child: Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text('+${i.points}',
-                        style: const TextStyle(
-                            color: AppColors.teal,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
       glow: glow,
       child: Pressable(
         onTap: () => _openSaleDetails(i, s, dark),
@@ -4311,22 +3304,6 @@ String? _activeCard;
               Padding(
                 padding: const EdgeInsetsDirectional.only(start: 4),
                 child: InkWell(
-                  onTap: () => _editInvoice(i, s),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.teal.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.edit_rounded,
-                        color: AppColors.teal, size: 16),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: InkWell(
                   onTap: () => _confirmDeleteInvoice(i, s),
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
@@ -4350,174 +3327,6 @@ String? _activeCard;
   Widget _returnRow(Map<String, dynamic> r, AppSettings s, bool dark, bool glow,
       {String hint = ''}) {
     final no = '${r['no'] ?? ''}';
-    final total = ((r['total'] as num?)?.toInt() ?? 0).abs();
-    final pts = ((r['points'] as num?)?.toInt() ?? 0).abs();
-    final date = '${r['date'] ?? ''}';
-    final key = '${r['id']}';
-    final active = _activeCard == key;
-    return _Glow(
-      glow: glow,
-      child: GestureDetector(
-        onLongPress: () =>
-            setState(() => _activeCard = active ? null : key),
-        child: Pressable(
-          onTap: () {
-            if (_activeCard != null) {
-              setState(() => _activeCard = null);
-              return;
-            }
-            _openReturnDetails(r, s, dark);
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: dark
-                    ? <Color>[
-                        const Color(0xFF1E1E28),
-                        const Color(0xFF26262E),
-                      ]
-                    : <Color>[Colors.white, const Color(0xFFFFF8F1)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.red.withAlpha(50)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(dark ? 50 : 10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: <Color>[Colors.red, Color(0xFFB02A2A)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withAlpha(40),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Text(s.isArabic ? 'مرتجع' : 'Return',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text(_dmy(date),
-                            style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 11)),
-                      ),
-                      const SizedBox(height: 4),
-                      Directionality(
-                        textDirection: TextDirection.ltr,
-                        child: Text('-${fmtThousands(total)}',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.red.shade300)),
-                      ),
-                      if (no.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Directionality(
-                          textDirection: TextDirection.ltr,
-                          child: Text(no,
-                              style: TextStyle(
-                                  color: Colors.grey.shade500, fontSize: 10)),
-                        ),
-                      ),
-                      if (hint.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        _hintChip(hint, Icons.shopping_cart_checkout_rounded,
-                            AppColors.teal),
-                      ],
-                    ],
-                  ),
-                ),
-                if (s.isAdmin && active) ...[
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(start: 4),
-                    child: InkWell(
-                      onTap: () => _editReturn(r, s),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.teal.withAlpha(20),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.edit_rounded,
-                            color: AppColors.teal, size: 16),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(start: 4),
-                    child: InkWell(
-                      onTap: () => _confirmDeleteReturn(r, s),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withAlpha(20),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.delete_outline_rounded,
-                            color: Colors.red, size: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        Colors.red.withAlpha(60),
-                        Colors.red.withAlpha(25),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red.withAlpha(120)),
-                  ),
-                  child: Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text('-$pts',
-                        style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
     final total = ((r['total'] as num?)?.toInt() ?? 0).abs();
     final pts = ((r['points'] as num?)?.toInt() ?? 0).abs();
     final date = '${r['date'] ?? ''}';
@@ -4631,22 +3440,6 @@ String? _activeCard;
                           color: Colors.red,
                           fontSize: 14,
                           fontWeight: FontWeight.w900)),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: InkWell(
-                  onTap: () => _editReturn(r, s),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.teal.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.edit_rounded,
-                        color: AppColors.teal, size: 16),
-                  ),
                 ),
               ),
               Padding(
@@ -5460,19 +4253,6 @@ String? _activeCard;
   }
 }
 
-                class _ItemEdit {
-  final TextEditingController name = TextEditingController();
-  final TextEditingController qty = TextEditingController();
-  final TextEditingController unit = TextEditingController();
-  double get subtotal =>
-      (int.tryParse(qty.text) ?? 0) *
-      (double.tryParse(unit.text.replaceAll(',', '')) ?? 0);
-  void dispose() {
-    name.dispose();
-    qty.dispose();
-    unit.dispose();
-  }
-}
 class _Glow extends StatefulWidget {
   final bool glow;
   final Widget child;
@@ -6449,3 +5229,4 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
     );
   }
 }
+google is broken
