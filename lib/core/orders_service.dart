@@ -469,17 +469,55 @@ static const String _kInvPatchKey = 'inv_patches_local';
     s.add(id);
     await _saveSet(_kInvTombKey, s);
   }
-static Future<void> markInvoicePatched(
+
+  static Future<Map<String, Map<String, dynamic>>> _loadInvPatches() async {
+    final p = await SharedPreferences.getInstance();
+    final s = p.getString(_kInvPatchKey);
+    if (s == null || s.isEmpty) return {};
+    try {
+      final raw = jsonDecode(s) as Map;
+      return raw.map((k, v) => MapEntry('$k', Map<String, dynamic>.from(v as Map)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> _saveInvPatches(Map<String, Map<String, dynamic>> m) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kInvPatchKey, jsonEncode(m));
+  }
+
+  static Future<Map<String, Map<String, dynamic>>> _loadRetPatches() async {
+    final p = await SharedPreferences.getInstance();
+    final s = p.getString(_kRetPatchKey);
+    if (s == null || s.isEmpty) return {};
+    try {
+      final raw = jsonDecode(s) as Map;
+      return raw.map((k, v) => MapEntry('$k', Map<String, dynamic>.from(v as Map)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> _saveRetPatches(Map<String, Map<String, dynamic>> m) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kRetPatchKey, jsonEncode(m));
+  }
+
+  static Future<void> markInvoicePatched(
       String id, Map<String, dynamic> patch) async {
-    _invPatch[id] = patch;
-    _saveLocal();
+    final m = await _loadInvPatches();
+    m[id] = patch;
+    await _saveInvPatches(m);
   }
 
   static Future<void> markReturnPatched(
       String id, Map<String, dynamic> patch) async {
-    _retPatch[id] = patch;
-    _saveLocal();
+    final m = await _loadRetPatches();
+    m[id] = patch;
+    await _saveRetPatches(m);
   }
+
   static Future<void> markReturnDeleted(String id) async {
     final s = await _loadSet(_kRetTombKey);
     s.add(id);
