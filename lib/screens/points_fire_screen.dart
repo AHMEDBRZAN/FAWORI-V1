@@ -62,6 +62,12 @@ class _PointsFireScreenState extends State<PointsFireScreen> {
         st[i.userId] = (st[i.userId] ?? 0) + i.stored;
         byUser.putIfAbsent(i.userId, () => []).add(i);
       }
+      for (final r in rets) {
+        final uid = '${r['userId'] ?? ''}';
+        pts[uid] = (pts[uid] ?? 0) - ((r['points'] as num?)?.toInt() ?? 0);
+        st[uid] = (st[uid] ?? 0) - ((r['stored'] as num?)?.toInt() ?? 0);
+      }
+      
       // ✅ قراءة النقاط والرصيد كما في الصفحة القديمة تماماً
       try {
         final oldUsers = await StoreService.loadUsers();
