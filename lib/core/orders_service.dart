@@ -623,7 +623,6 @@ static const String _kInvPatchKey = 'inv_patches_local';
           list[i] = Invoice(
             id: list[i].id,
             userId: list[i].userId,
-            userName: list[i].userName,
             no: '${p['no'] ?? list[i].no}',
             date: '${p['date'] ?? list[i].date}',
             total: (p['total'] as num?)?.toDouble() ?? list[i].total,
