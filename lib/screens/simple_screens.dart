@@ -2035,7 +2035,375 @@ Set<String> _histDel = {};
     }
     _backgroundReload();
   }
-Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
+/// 📋 تعديل الفاتورة بجدول المواد: حذف وإضافة مواد وحساب تلقائي
+  Future<void> _editInvoiceTable(
+    AppSettings s, {
+    required String key,
+    required bool isHist,
+    Invoice? inv,
+    Map<String, dynamic>? hist,
+  }) async {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final srcItems = isHist
+        ? List<Map<String, dynamic>>.from((hist?['items'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map)))
+        : (inv?.items ?? const <InvoiceItem>[])
+            .map((it) => <String, dynamic>{
+                  'name': it.name,
+                  'qty': it.qty,
+                  'unit_price': it.unitPrice,
+                })
+            .toList();
+    final eds = <_ItemEdit>[];
+    for (final m in srcItems) {
+      final e = _ItemEdit();
+      e.name.text = '${m['name'] ?? ''}';
+      e.qty.text = '${(m['qty'] as num?)?.toInt() ?? 1}';
+      final up = (m['unit_price'] as num?)?.toDouble() ??
+          (m['price'] as num?)?.toDouble() ??
+          0;
+      e.unit.text = up == 0 ? '' : '${up.toInt()}';
+      eds.add(e);
+    }
+    final dateC = TextEditingController(
+        text: isHist ? '${hist?['date'] ?? ''}' : (inv?.date ?? ''));
+    final noC = TextEditingController(
+        text: isHist ? '${hist?['legacy_no'] ?? ''}' : (inv?.no ?? ''));
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          int total = 0;
+          for (final e in eds) {
+            total += e.subtotal.toInt();
+          }
+          return Dialog(
+            backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.edit_rounded,
+                            color: AppColors.teal),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                              s.isArabic ? 'تعديل الفاتورة' : 'Edit invoice',
+                              style: const TextStyle(
+                                  color: AppColors.teal,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _editField(noC,
+                              s.isArabic ? 'رقم الفاتورة' : 'No',
+                              Icons.receipt_rounded, AppColors.orange, dark),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _editField(dateC,
+                              s.isArabic ? 'التاريخ' : 'Date',
+                              Icons.calendar_today_rounded,
+                              AppColors.teal, dark),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                                child: Text(
+                                    s.isArabic ? 'المادة' : 'Item',
+                                    style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800))),
+                            SizedBox(
+                                width: 44,
+                                child: Text(s.isArabic ? 'العدد' : 'Qty',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800))),
+                            SizedBox(
+                                width: 70,
+                                child: Text(s.isArabic ? 'مفرد' : 'Unit',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800))),
+                            SizedBox(
+                                width: 70,
+                                child: Text(s.isArabic ? 'اجمالي' : 'Total',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800))),
+                            const SizedBox(width: 26),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        for (int i = 0; i < eds.length; i++)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: dark
+                                  ? const Color(0xFF26262E)
+                                  : const Color(0xFFFFFDF9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: AppColors.orange.withAlpha(50)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: eds[i].name,
+                                    style: TextStyle(
+                                        color: dark
+                                            ? Colors.white
+                                            : AppColors.ink,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700),
+                                    decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 44,
+                                  child: TextField(
+                                    controller: eds[i].qty,
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) => setSt(() {}),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: dark
+                                            ? Colors.white
+                                            : AppColors.ink,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800),
+                                    decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 70,
+                                  child: TextField(
+                                    controller: eds[i].unit,
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) => setSt(() {}),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        color: AppColors.teal,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800),
+                                    decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 70,
+                                  child: Directionality(
+                                    textDirection: TextDirection.ltr,
+                                    child: Text(fmtThousands(eds[i].subtotal),
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                            color: AppColors.orange,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w900)),
+                                  ),
+                                ),
+                                InkWell(
+                                  onTap: () => setSt(() {
+                                    eds[i].dispose();
+                                    eds.removeAt(i);
+                                  }),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                        color: Colors.red.withAlpha(20),
+                                        borderRadius:
+                                            BorderRadius.circular(8)),
+                                    child: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: Colors.red,
+                                        size: 15),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton.icon(
+                            onPressed: () => setSt(() => eds.add(_ItemEdit())),
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: Text(s.isArabic ? 'إضافة مادة' : 'Add item'),
+                            style: TextButton.styleFrom(
+                                foregroundColor: AppColors.teal),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.orange.withAlpha(dark ? 30 : 18),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Text(s.isArabic ? 'الإجمالي' : 'Total',
+                                style: TextStyle(
+                                    color: dark
+                                        ? Colors.white
+                                        : AppColors.ink,
+                                    fontWeight: FontWeight.w900)),
+                            const Spacer(),
+                            Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text(fmtThousands(total),
+                                  style: const TextStyle(
+                                      color: AppColors.orange,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                                s.isArabic
+                                    ? 'النقاط والرصيد'
+                                    : 'Points & stored',
+                                style: TextStyle(
+                                    color: dark
+                                        ? Colors.white
+                                        : AppColors.ink,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12)),
+                            const Spacer(),
+                            Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text(
+                                  '${total ~/ kPointUnit} | ${total % kPointUnit}',
+                                  style: const TextStyle(
+                                      color: AppColors.teal,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.grey.shade700,
+                                    foregroundColor: Colors.white),
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: Text(s.isArabic ? 'إلغاء' : 'Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.teal,
+                                    foregroundColor: Colors.white),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: Text(s.isArabic ? 'حفظ' : 'Save'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (ok != true) {
+      for (final e in eds) {
+        e.dispose();
+      }
+      return;
+    }
+    final itemsOut = eds
+        .map((e) => {
+              'name': e.name.text.trim(),
+              'qty': int.tryParse(e.qty.text) ?? 0,
+              'price': 0,
+              'unit_price':
+                  double.tryParse(e.unit.text.replaceAll(',', '')) ?? 0,
+              'subtotal': e.subtotal,
+            })
+        .toList();
+    int total = 0;
+    for (final m in itemsOut) {
+      total += (m['subtotal'] as double).toInt();
+    }
+    final patch = <String, dynamic>{
+      'items': itemsOut,
+      'total': total.toDouble(),
+      'points': total ~/ kPointUnit,
+      'stored': total % kPointUnit,
+      'date': dateC.text.trim(),
+      if (isHist) 'legacy_no': noC.text.trim(),
+      if (!isHist) 'no': noC.text.trim(),
+    };
+    if (isHist) {
+      await OrdersService.markHistPatched(key, patch);
+    } else {
+      await OrdersService.markInvoicePatched(key, patch);
+      await OrdersService.publishInvoicePatch(key);
+    }
+    for (final e in eds) {
+      e.dispose();
+    }
+    if (mounted) setState(() {});
+    _backgroundReload();
+  }
+  Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final totalCtrl = TextEditingController(
         text: '${((h['total'] as num?)?.toDouble() ?? 0).toInt()}');
