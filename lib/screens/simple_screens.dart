@@ -3299,8 +3299,175 @@ Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
     );
   }
 
-  /// ✅ بطاقة السجل التاريخي — بنفس شكل بطاقات الشراء/المرتجع تماماً
+  /// ✅ بطاقة السجل التاريخي — الأزرار تظهر بالنقر المطوّل فقط
   Widget _histCard(Map<String, dynamic> h, AppSettings s, bool dark) {
+    final total = (h['total'] as num?)?.toDouble() ?? 0;
+    final pts = (h['points'] as num?)?.toInt() ?? 0;
+    final neg = total < 0;
+    final cashier = '${h['cashier'] ?? ''}'.trim();
+    final c = neg ? Colors.red : AppColors.teal;
+    final key = _histKey(h);
+    final active = _activeCard == key;
+    return GestureDetector(
+      onLongPress: () => setState(() => _activeCard = active ? null : key),
+      child: Pressable(
+        onTap: () {
+          if (_activeCard != null) {
+            setState(() => _activeCard = null);
+            return;
+          }
+          _openHistDetails(h, s, dark);
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: dark
+                  ? <Color>[const Color(0xFF1E1E28), const Color(0xFF26262E)]
+                  : <Color>[Colors.white, const Color(0xFFFFF8F1)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: c.withAlpha(50)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(dark ? 50 : 10),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: neg
+                        ? <Color>[Colors.red, const Color(0xFFB02A2A)]
+                        : <Color>[AppColors.teal, const Color(0xFF0AA87A)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                        color: c.withAlpha(40),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Text(
+                    neg
+                        ? (s.isArabic ? 'مرتجع' : 'Return')
+                        : (s.isArabic ? 'شراء' : 'Sale'),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(
+                          cashier.isEmpty
+                              ? '${h['date'] ?? ''}'
+                              : '${h['date'] ?? ''} • $cashier',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 11)),
+                    ),
+                    const SizedBox(height: 4),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(
+                          neg
+                              ? '-${fmtThousands(total.abs())}'
+                              : fmtThousands(total),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: neg
+                                  ? Colors.red.shade300
+                                  : (dark ? Colors.white : AppColors.ink))),
+                    ),
+                    const SizedBox(height: 2),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text('${h['legacy_no'] ?? ''}',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 10)),
+                    ),
+                    const SizedBox(height: 4),
+                    _hintChip(s.isArabic ? 'من الحاسبة' : 'From PC',
+                        Icons.computer_rounded, const Color(0xFF9B59B6)),
+                  ],
+                ),
+              ),
+              if (s.isAdmin && active) ...[
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 4),
+                  child: InkWell(
+                    onTap: () =>
+                        _editInvoiceTable(s, key: key, isHist: true, hist: h),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.teal.withAlpha(20),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.edit_rounded,
+                          color: AppColors.teal, size: 16),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 4),
+                  child: InkWell(
+                    onTap: () => _confirmDeleteHist(h, s),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withAlpha(20),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded,
+                          color: Colors.red, size: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[c.withAlpha(60), c.withAlpha(25)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: c.withAlpha(120)),
+                ),
+                child: Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(pts >= 0 ? '+$pts' : '-${pts.abs()}',
+                      style: TextStyle(
+                          color: c, fontSize: 14, fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
     final total = (h['total'] as num?)?.toDouble() ?? 0;
     final pts = (h['points'] as num?)?.toInt() ?? 0;
     final neg = total < 0;
@@ -3496,7 +3663,171 @@ Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
 
   Widget _saleRow(Invoice i, AppSettings s, bool dark, bool glow,
       {String hint = ''}) {
+    final active = _activeCard == i.id;
     return _Glow(
+      glow: glow,
+      child: GestureDetector(
+        onLongPress: () =>
+            setState(() => _activeCard = active ? null : i.id),
+        child: Pressable(
+          onTap: () {
+            if (_activeCard != null) {
+              setState(() => _activeCard = null);
+              return;
+            }
+            _openSaleDetails(i, s, dark);
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: dark
+                    ? <Color>[
+                        const Color(0xFF1E1E28),
+                        const Color(0xFF26262E),
+                      ]
+                    : <Color>[Colors.white, const Color(0xFFFFF8F1)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.teal.withAlpha(50)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(dark ? 50 : 10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: <Color>[AppColors.teal, Color(0xFF0AA87A)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.teal.withAlpha(40),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(s.isArabic ? 'شراء' : 'Sale',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(_dmy(i.date),
+                            style: TextStyle(
+                                color: Colors.grey.shade500, fontSize: 11)),
+                      ),
+                      const SizedBox(height: 4),
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(fmtThousands(i.total),
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: dark ? Colors.white : AppColors.ink)),
+                      ),
+                      if (i.no.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Text(i.no,
+                              style: TextStyle(
+                                  color: Colors.grey.shade500, fontSize: 10)),
+                        ),
+                      ],
+                      if (hint.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _hintChip(hint, Icons.shopping_cart_checkout_rounded,
+                            AppColors.teal),
+                      ],
+                    ],
+                  ),
+                ),
+                if (s.isAdmin && active) ...[
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 4),
+                    child: InkWell(
+                      onTap: () => _editInvoiceTable(s,
+                          key: i.id, isHist: false, inv: i),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.teal.withAlpha(20),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.edit_rounded,
+                            color: AppColors.teal, size: 16),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 4),
+                    child: InkWell(
+                      onTap: () => _confirmDeleteInvoice(i, s),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withAlpha(20),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.delete_outline_rounded,
+                            color: Colors.red, size: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        AppColors.teal.withAlpha(60),
+                        AppColors.teal.withAlpha(25),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.teal.withAlpha(120)),
+                  ),
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Text('+${i.points}',
+                        style: const TextStyle(
+                            color: AppColors.teal,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
       glow: glow,
       child: Pressable(
         onTap: () => _openSaleDetails(i, s, dark),
@@ -3650,6 +3981,174 @@ Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
   Widget _returnRow(Map<String, dynamic> r, AppSettings s, bool dark, bool glow,
       {String hint = ''}) {
     final no = '${r['no'] ?? ''}';
+    final total = ((r['total'] as num?)?.toInt() ?? 0).abs();
+    final pts = ((r['points'] as num?)?.toInt() ?? 0).abs();
+    final date = '${r['date'] ?? ''}';
+    final key = '${r['id']}';
+    final active = _activeCard == key;
+    return _Glow(
+      glow: glow,
+      child: GestureDetector(
+        onLongPress: () =>
+            setState(() => _activeCard = active ? null : key),
+        child: Pressable(
+          onTap: () {
+            if (_activeCard != null) {
+              setState(() => _activeCard = null);
+              return;
+            }
+            _openReturnDetails(r, s, dark);
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: dark
+                    ? <Color>[
+                        const Color(0xFF1E1E28),
+                        const Color(0xFF26262E),
+                      ]
+                    : <Color>[Colors.white, const Color(0xFFFFF8F1)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.red.withAlpha(50)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(dark ? 50 : 10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: <Color>[Colors.red, Color(0xFFB02A2A)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withAlpha(40),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(s.isArabic ? 'مرتجع' : 'Return',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(_dmy(date),
+                            style: TextStyle(
+                                color: Colors.grey.shade500, fontSize: 11)),
+                      ),
+                      const SizedBox(height: 4),
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text('-${fmtThousands(total)}',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.red.shade300)),
+                      ),
+                      if (no.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Directionality(
+                          textDirection: TextDirection.ltr,
+                          child: Text(no,
+                              style: TextStyle(
+                                  color: Colors.grey.shade500, fontSize: 10)),
+                        ),
+                      ),
+                      if (hint.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _hintChip(hint, Icons.shopping_cart_checkout_rounded,
+                            AppColors.teal),
+                      ],
+                    ],
+                  ),
+                ),
+                if (s.isAdmin && active) ...[
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 4),
+                    child: InkWell(
+                      onTap: () => _editReturn(r, s),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.teal.withAlpha(20),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.edit_rounded,
+                            color: AppColors.teal, size: 16),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 4),
+                    child: InkWell(
+                      onTap: () => _confirmDeleteReturn(r, s),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withAlpha(20),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.delete_outline_rounded,
+                            color: Colors.red, size: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: <Color>[
+                        Colors.red.withAlpha(60),
+                        Colors.red.withAlpha(25),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withAlpha(120)),
+                  ),
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Text('-$pts',
+                        style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
     final total = ((r['total'] as num?)?.toInt() ?? 0).abs();
     final pts = ((r['points'] as num?)?.toInt() ?? 0).abs();
     final date = '${r['date'] ?? ''}';
