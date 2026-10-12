@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import 'admin_users.dart';
 import 'home_screen.dart';
 import 'media_admin_screen.dart';
+import 'points_fire_screen.dart';
 import 'products_screen.dart';
 import 'profile_screen.dart';
 import 'simple_screens.dart';
