@@ -68,8 +68,8 @@ class _MainScreenState extends State<MainScreen> {
     icons.add(Icons.grid_view_rounded);
     labels.add(s.isArabic ? 'المنتجات' : 'Products');
 
-    // التبويب 2: المحفظة أو النقاط والرصيد
-    screens.add(isAdmin ? const PointsFireScreen() : const WalletScreen());
+    // التبويب 2: المحفظة
+    screens.add(const WalletScreen());
     icons.add(Icons.account_balance_wallet_rounded);
     labels.add(s.isArabic
         ? (isAdmin ? 'النقاط والرصيد' : 'المحفظة')
