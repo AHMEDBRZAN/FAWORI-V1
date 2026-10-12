@@ -1,6 +1,7 @@
 // طبقة المستخدمين الموحدة - تطبيق Firebase
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class AppUser {
   final String id;
@@ -49,6 +50,9 @@ abstract class UserRepo {
       String phone, String name, String password, String role);
   Future<void> updateUser(String id, Map<String, dynamic> fields);
   Future<void> deleteUser(String id);
+  Future<String?> readPass(String uid);
+  Future<void> savePass(String uid, String pass);
+  Future<bool> changePassword(String uid, String newPass);
 }
 
 class FbUserRepo implements UserRepo {
@@ -82,6 +86,7 @@ class FbUserRepo implements UserRepo {
       final u = AppUser(
           id: cred.user!.uid, phone: phone.trim(), name: name, role: 'client');
       await _db.collection('users').doc(cred.user!.uid).set(u.toMap());
+      await savePass(cred.user!.uid, password);
       return u;
     } catch (_) {
       return null;
@@ -130,18 +135,28 @@ class FbUserRepo implements UserRepo {
   @override
   Future<AppUser> createUser(
       String phone, String name, String password, String role) async {
-    final cred = await _auth.createUserWithEmailAndPassword(
-        email: _email(phone), password: password);
-    final u = AppUser(
-      id: cred.user!.uid,
-      phone: phone.trim(),
-      name: name.trim(),
-      role: role,
-      points: 0,
-      stored: 0,
-    );
-    await _db.collection('users').doc(cred.user!.uid).set(u.toMap());
-    return u;
+    final app = await Firebase.initializeApp(
+        name: 'tmp_create_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options);
+    try {
+      final auth2 = FirebaseAuth.instanceFor(app: app);
+      final cred = await auth2.createUserWithEmailAndPassword(
+          email: _email(phone), password: password);
+      final u = AppUser(
+        id: cred.user!.uid,
+        phone: phone.trim(),
+        name: name.trim(),
+        role: role,
+        points: 0,
+        stored: 0,
+      );
+      await _db.collection('users').doc(cred.user!.uid).set(u.toMap());
+      await savePass(cred.user!.uid, password);
+      await auth2.signOut();
+      return u;
+    } finally {
+      await app.delete();
+    }
   }
 
   @override
@@ -155,6 +170,46 @@ class FbUserRepo implements UserRepo {
   @override
   Future<void> deleteUser(String id) async {
     await _db.collection('users').doc(id).delete();
+  }
+
+  @override
+  Future<String?> readPass(String uid) async {
+    final d = await _db.collection('creds').doc(uid).get();
+    if (!d.exists) return null;
+    final p = '${d.data()?['pass'] ?? ''}';
+    return p.isEmpty ? null : p;
+  }
+
+  @override
+  Future<void> savePass(String uid, String pass) async {
+    await _db.collection('creds').doc(uid).set({'pass': pass});
+  }
+
+  @override
+  Future<bool> changePassword(String uid, String newPass) async {
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      final phone = '${doc.data()?['phone'] ?? ''}';
+      final oldPass = await readPass(uid);
+      if (phone.isEmpty || (oldPass ?? '').isEmpty) return false;
+
+      final app = await Firebase.initializeApp(
+          name: 'tmp_pass_${DateTime.now().millisecondsSinceEpoch}',
+          options: Firebase.app().options);
+      try {
+        final auth2 = FirebaseAuth.instanceFor(app: app);
+        final cred = await auth2.signInWithEmailAndPassword(
+            email: _email(phone), password: oldPass!);
+        await cred.user!.updatePassword(newPass);
+        await savePass(uid, newPass);
+        await auth2.signOut();
+        return true;
+      } finally {
+        await app.delete();
+      }
+    } catch (_) {
+      return false;
+    }
   }
 }
 
