@@ -3280,8 +3280,17 @@ Set<String> _histDel = {};
     final neg = total < 0;
     final cashier = '${h['cashier'] ?? ''}'.trim();
     final c = neg ? Colors.red : AppColors.teal;
-    return Pressable(
-      onTap: () => _openHistDetails(h, s, dark),
+    final key = _histKey(h);
+    final active = _activeCard == key;
+    return InkWell(
+      onLongPress: () => setState(() => _activeCard = active ? null : key),
+      onTap: () {
+        if (_activeCard != null) {
+          setState(() => _activeCard = null);
+          return;
+        }
+        _openHistDetails(h, s, dark);
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -3388,7 +3397,7 @@ Set<String> _histDel = {};
                         color: c, fontSize: 14, fontWeight: FontWeight.w900)),
               ),
             ),
-            if (s.isAdmin) ...[
+            if (s.isAdmin && active) ...[
               Padding(
                 padding: const EdgeInsetsDirectional.only(start: 4),
                 child: InkWell(
@@ -3470,10 +3479,18 @@ Set<String> _histDel = {};
 
   Widget _saleRow(Invoice i, AppSettings s, bool dark, bool glow,
       {String hint = ''}) {
+    final active = _activeCard == i.id;
     return _Glow(
       glow: glow,
-      child: Pressable(
-        onTap: () => _openSaleDetails(i, s, dark),
+      child: InkWell(
+        onLongPress: () => setState(() => _activeCard = active ? null : i.id),
+        onTap: () {
+          if (_activeCard != null) {
+            setState(() => _activeCard = null);
+            return;
+          }
+          _openSaleDetails(i, s, dark);
+        },
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
@@ -3611,10 +3628,19 @@ Set<String> _histDel = {};
     final total = ((r['total'] as num?)?.toInt() ?? 0).abs();
     final pts = ((r['points'] as num?)?.toInt() ?? 0).abs();
     final date = '${r['date'] ?? ''}';
+    final key = '${r['id']}';
+    final active = _activeCard == key;
     return _Glow(
       glow: glow,
-      child: Pressable(
-        onTap: () => _openReturnDetails(r, s, dark),
+      child: InkWell(
+        onLongPress: () => setState(() => _activeCard = active ? null : key),
+        onTap: () {
+          if (_activeCard != null) {
+            setState(() => _activeCard = null);
+            return;
+          }
+          _openReturnDetails(r, s, dark);
+        },
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
