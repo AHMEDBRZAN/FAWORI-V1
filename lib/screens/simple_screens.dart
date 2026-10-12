@@ -1569,7 +1569,8 @@ class AdminPointsView extends StatefulWidget {
 class _AdminPointsViewState extends State<AdminPointsView> {
   List<User> _users = [];
  Map<String, Set<String>> _altIds = {};
-Set<String> _histDel = {};
+String? _activeCard;
+  Set<String> _histDel = {};
   Map<String, Map<String, dynamic>> _histPatch = {};
   List<Invoice> _invoices = [];
   List<Map<String, dynamic>> _returns = [];
