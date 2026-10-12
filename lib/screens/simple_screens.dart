@@ -2036,6 +2036,267 @@ Set<String> _histDel = {};
     _backgroundReload();
   }
 
+  Widget _editField(TextEditingController c, String hint, IconData icon,
+      Color color, bool dark,
+      {TextInputType? kb}) {
+    return TextField(
+      controller: c,
+      keyboardType: kb,
+      style: TextStyle(color: dark ? Colors.white : AppColors.ink),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+            color: dark ? Colors.grey.shade500 : Colors.grey.shade400,
+            fontSize: 12),
+        prefixIcon: Icon(icon, color: color, size: 20),
+        filled: true,
+        fillColor: dark ? const Color(0xFF26262E) : const Color(0xFFFFFDF9),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none),
+      ),
+    );
+  }
+
+  Future<void> _editHist(Map<String, dynamic> h, AppSettings s) async {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final totalCtrl = TextEditingController(
+        text: '${((h['total'] as num?)?.toDouble() ?? 0).toInt()}');
+    final dateCtrl = TextEditingController(text: '${h['date'] ?? ''}');
+    final noCtrl = TextEditingController(text: '${h['legacy_no'] ?? ''}');
+    final pointsCtrl =
+        TextEditingController(text: '${(h['points'] as num?)?.toInt() ?? 0}');
+    final storedCtrl =
+        TextEditingController(text: '${(h['stored'] as num?)?.toInt() ?? 0}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(s.isArabic ? 'تعديل سجل الحاسبة' : 'Edit PC record',
+            style: const TextStyle(
+                color: AppColors.teal, fontWeight: FontWeight.w900)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _editField(noCtrl, s.isArabic ? 'رقم الفاتورة' : 'Invoice No',
+                  Icons.receipt_rounded, AppColors.orange, dark),
+              const SizedBox(height: 10),
+              _editField(totalCtrl, s.isArabic ? 'الإجمالي' : 'Total',
+                  Icons.payments_rounded, AppColors.orange, dark,
+                  kb: TextInputType.number),
+              const SizedBox(height: 10),
+              _editField(dateCtrl, s.isArabic ? 'التاريخ' : 'Date',
+                  Icons.calendar_today_rounded, AppColors.teal, dark),
+              const SizedBox(height: 10),
+              _editField(pointsCtrl, s.isArabic ? 'النقاط' : 'Points',
+                  Icons.stars_rounded, AppColors.teal, dark,
+                  kb: TextInputType.number),
+              const SizedBox(height: 10),
+              _editField(storedCtrl, s.isArabic ? 'الرصيد المخزن' : 'Stored',
+                  Icons.inventory_rounded, const Color(0xFF9B59B6), dark,
+                  kb: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.isArabic ? 'حفظ' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final patch = <String, dynamic>{
+      'total': (double.tryParse(totalCtrl.text.replaceAll(',', '')) ?? 0),
+      'points': int.tryParse(pointsCtrl.text) ?? 0,
+      'stored': int.tryParse(storedCtrl.text) ?? 0,
+      'date': dateCtrl.text.trim(),
+      'legacy_no': noCtrl.text.trim(),
+    };
+    await OrdersService.markHistPatched(
+        '${h['legacy_no'] ?? ''}|${h['date'] ?? ''}|${(h['total'] as num?)?.toDouble() ?? 0}',
+        patch);
+    if (mounted) setState(() {});
+    _backgroundReload();
+  }
+
+  Future<void> _confirmDeleteHist(
+      Map<String, dynamic> h, AppSettings s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.isArabic ? 'حذف سجل الحاسبة' : 'Delete PC record'),
+        content: Text(s.isArabic
+            ? 'سيُحذف هذا السجل من النقاط والرصيد. لا يمكن التراجع.'
+            : 'This record will be removed from points. Cannot undo.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.isArabic ? 'حذف' : 'Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await OrdersService.markHistDeleted(
+        '${h['legacy_no'] ?? ''}|${h['date'] ?? ''}|${(h['total'] as num?)?.toDouble() ?? 0}');
+    if (mounted) setState(() {});
+    _backgroundReload();
+  }
+
+  Future<void> _editInvoice(Invoice i, AppSettings s) async {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final totalCtrl = TextEditingController(text: '${i.total.toInt()}');
+    final dateCtrl = TextEditingController(text: i.date);
+    final noCtrl = TextEditingController(text: i.no);
+    final pointsCtrl = TextEditingController(text: '${i.points}');
+    final storedCtrl = TextEditingController(text: '${i.stored}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(s.isArabic ? 'تعديل الفاتورة' : 'Edit invoice',
+            style: const TextStyle(
+                color: AppColors.teal, fontWeight: FontWeight.w900)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _editField(noCtrl, s.isArabic ? 'رقم الفاتورة' : 'Invoice No',
+                  Icons.receipt_rounded, AppColors.orange, dark),
+              const SizedBox(height: 10),
+              _editField(totalCtrl, s.isArabic ? 'الإجمالي' : 'Total',
+                  Icons.payments_rounded, AppColors.orange, dark,
+                  kb: TextInputType.number),
+              const SizedBox(height: 10),
+              _editField(dateCtrl, s.isArabic ? 'التاريخ' : 'Date',
+                  Icons.calendar_today_rounded, AppColors.teal, dark),
+              const SizedBox(height: 10),
+              _editField(pointsCtrl, s.isArabic ? 'النقاط' : 'Points',
+                  Icons.stars_rounded, AppColors.teal, dark,
+                  kb: TextInputType.number),
+              const SizedBox(height: 10),
+              _editField(storedCtrl, s.isArabic ? 'الرصيد المخزن' : 'Stored',
+                  Icons.inventory_rounded, const Color(0xFF9B59B6), dark,
+                  kb: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teal, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.isArabic ? 'حفظ' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final patch = <String, dynamic>{
+      'total':
+          double.tryParse(totalCtrl.text.replaceAll(',', '')) ?? i.total,
+      'points': int.tryParse(pointsCtrl.text) ?? i.points,
+      'stored': int.tryParse(storedCtrl.text) ?? i.stored,
+      'date': dateCtrl.text.trim(),
+      'no': noCtrl.text.trim(),
+    };
+    await OrdersService.markInvoicePatched(i.id, patch);
+    await OrdersService.publishInvoicePatch(i.id);
+    if (mounted) setState(() {});
+    _backgroundReload();
+  }
+
+  Future<void> _editReturn(Map<String, dynamic> r, AppSettings s) async {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final totalCtrl = TextEditingController(
+        text: '${((r['total'] as num?)?.toInt() ?? 0).abs()}');
+    final dateCtrl = TextEditingController(text: '${r['date'] ?? ''}');
+    final noCtrl = TextEditingController(text: '${r['no'] ?? ''}');
+    final pointsCtrl = TextEditingController(
+        text: '${((r['points'] as num?)?.toInt() ?? 0).abs()}');
+    final storedCtrl = TextEditingController(
+        text: '${((r['stored'] as num?)?.toInt() ?? 0).abs()}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: dark ? const Color(0xFF1E1E28) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(s.isArabic ? 'تعديل المرتجع' : 'Edit return',
+            style: const TextStyle(
+                color: Color(0xFF9B59B6), fontWeight: FontWeight.w900)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _editField(noCtrl, s.isArabic ? 'رقم المرتجع' : 'Return No',
+                  Icons.receipt_rounded, const Color(0xFF9B59B6), dark),
+              const SizedBox(height: 10),
+              _editField(totalCtrl, s.isArabic ? 'الإجمالي' : 'Total',
+                  Icons.payments_rounded, Colors.red, dark,
+                  kb: TextInputType.number),
+              const SizedBox(height: 10),
+              _editField(dateCtrl, s.isArabic ? 'التاريخ' : 'Date',
+                  Icons.calendar_today_rounded, AppColors.teal, dark),
+              const SizedBox(height: 10),
+              _editField(pointsCtrl, s.isArabic ? 'النقاط' : 'Points',
+                  Icons.stars_rounded, Colors.red, dark,
+                  kb: TextInputType.number),
+              const SizedBox(height: 10),
+              _editField(storedCtrl, s.isArabic ? 'الرصيد المخزن' : 'Stored',
+                  Icons.inventory_rounded, Colors.red, dark,
+                  kb: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF9B59B6),
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.isArabic ? 'حفظ' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final id = '${r['id']}';
+    final patch = <String, dynamic>{
+      'total': -((int.tryParse(totalCtrl.text.replaceAll(',', '')) ?? 0)),
+      'points': -((int.tryParse(pointsCtrl.text) ?? 0)),
+      'stored': -((int.tryParse(storedCtrl.text) ?? 0)),
+      'date': dateCtrl.text.trim(),
+      'no': noCtrl.text.trim(),
+    };
+    if (r['legacy'] == true) {
+      await OrdersService.markInvoicePatched(id, patch);
+      await OrdersService.publishInvoicePatch(id);
+    } else {
+      await OrdersService.markReturnPatched(id, patch);
+      await OrdersService.publishReturnPatch(id, false);
+    }
+    if (mounted) setState(() {});
+    _backgroundReload();
+  }
   Future<void> _confirmDeleteInvoice(Invoice i, AppSettings s) async {
     final ok = await showDialog<bool>(
       context: context,
