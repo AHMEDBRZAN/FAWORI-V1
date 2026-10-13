@@ -3082,8 +3082,14 @@ Set<String> _histDel = {};
           row['hist'] != null
               ? _histCard(row['hist'] as Map<String, dynamic>, s, dark)
               : row['inv'] != null
-                  ? _saleRow(row['inv'] as Invoice, s, dark, false,
-                      hint: s.isArabic ? 'طلب شراء أون لاين' : 'Online order')
+                  ? _saleRow(
+                      row['inv'] as Invoice,
+                      s,
+                      dark,
+                      false,
+                      hint: (row['inv'] as Invoice).source == 'excel_import'
+                          ? (s.isArabic ? 'من الحاسبة' : 'From PC')
+                          : (s.isArabic ? 'طلب شراء أون لاين' : 'Online order'))
                   : _returnRow(
                       row['ret'] as Map<String, dynamic>, s, dark, false,
                       hint: s.isArabic ? 'طلب شراء أون لاين' : 'Online order'),
