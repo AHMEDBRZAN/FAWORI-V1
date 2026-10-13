@@ -327,7 +327,7 @@ class _EditDialog {
     final s = context.read<AppSettings>();
     final dark = Theme.of(context).brightness == Brightness.dark;
     if (u.role == 'ctrl' && !context.read<AppSettings>().isController) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('لا تملك صلاحية تعديل حساب المتحكم',
                 style: const TextStyle(
