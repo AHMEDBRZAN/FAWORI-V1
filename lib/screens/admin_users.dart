@@ -325,6 +325,11 @@ class _EditDialog {
     final nameC = TextEditingController(text: u.name);
     final phoneC = TextEditingController(text: u.phone);
     String role = u.role;
+
+    final nameC = TextEditingController(text: u.name);
+    final phoneC = TextEditingController(text: u.phone);
+    final passC = TextEditingController();
+    String role = u.role;
     final isCtrl = s.isController;
 
     final ok = await showDialog<bool>(
@@ -385,6 +390,51 @@ class _EditDialog {
                       Icons.phone_rounded, AppColors.teal, dark,
                       kt: TextInputType.phone),
                   const SizedBox(height: 14),
+
+                  const SizedBox(height: 10),
+                  _fld(passC,
+                      s.isArabic
+                          ? 'كلمة سر جديدة (اختياري)'
+                          : 'New password (optional)',
+                      Icons.lock_rounded, const Color(0xFF9B59B6), dark,
+                      obscure: true),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final p = await userRepo.readPass(u.id);
+                        if (!context.mounted) return;
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(
+                                s.isArabic ? 'كلمة السر' : 'Password'),
+                            content: SelectableText(
+                                (p == null || p.isEmpty)
+                                    ? (s.isArabic
+                                        ? 'غير محفوظة'
+                                        : 'Not stored')
+                                    : p,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18)),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: Text(
+                                      s.isArabic ? 'إغلاق' : 'Close')),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.visibility_rounded, size: 18),
+                      label: Text(s.isArabic
+                          ? 'إظهار كلمة السر'
+                          : 'Show password'),
+                      style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF9B59B6)),
+                    ),
+                  ),
                   if (isCtrl) ...[
                     Align(
                       alignment: AlignmentDirectional.centerStart,
@@ -458,6 +508,17 @@ class _EditDialog {
       };
       if (isCtrl) fields['role'] = role;
       await userRepo.updateUser(u.id, fields);
+      if (passC.text.trim().isNotEmpty) {
+        final okPw =
+            await userRepo.changePassword(u.id, passC.text.trim());
+        if (!okPw && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(s.isArabic
+                  ? 'تعذر تغيير كلمة السر: لا توجد كلمة محفوظة لهذا الحساب'
+                  : 'Password change failed: no stored password'),
+              backgroundColor: Colors.red));
+        }
+      }
       return true;
     } catch (_) {
       return false;
