@@ -107,7 +107,8 @@ class InvoiceRepo {
   Future<List<FireInvoice>> list() async {
     final snap = await _col.get();
     return snap.docs
-        .map((d) => FireInvoice.fromMap(d.id, Map<String, dynamic>.from(d.data())))
+        .map((d) => FireInvoice.fromMap(
+            d.id, Map<String, dynamic>.from(d.data() as Map)))
         .toList();
   }
 
@@ -117,6 +118,14 @@ class InvoiceRepo {
       _col.doc(id).update(fields);
 
   Future<void> delete(String id) => _col.doc(id).delete();
+
+  Future<void> markMigration(Map<String, dynamic> m) =>
+      _db.collection('meta').doc('migration').set(m);
+
+  Future<Map<String, dynamic>?> migrationInfo() async {
+    final d = await _db.collection('meta').doc('migration').get();
+    return d.exists ? Map<String, dynamic>.from(d.data() as Map) : null;
+  }
 
   Future<void> importMany(List<FireInvoice> list) async {
     WriteBatch? batch;
@@ -198,7 +207,8 @@ class ReturnRepo {
   Future<List<FireReturn>> list() async {
     final snap = await _col.get();
     return snap.docs
-        .map((d) => FireReturn.fromMap(d.id, Map<String, dynamic>.from(d.data())))
+        .map((d) => FireReturn.fromMap(
+            d.id, Map<String, dynamic>.from(d.data() as Map)))
         .toList();
   }
 
