@@ -208,24 +208,20 @@ class AppSettings extends ChangeNotifier {
     );
   }
 
-  Future<User> _withInvoiceTotals(User base) async {
-    try {
-      final invs = await StoreService.loadInvoices();
-      final rets = await OrdersService.loadReturns();
-      int pts = 0;
-      int st = 0;
-      for (final i in invs) {
-        if (i.userId == base.id) {
-          pts += i.points;
-          st += i.stored;
-        }
-      }
-      for (final r in rets) {
-        if (r['userId'] == base.id) {
-          pts -= ((r['points'] as num?)?.toInt() ?? 0);
-          st -= ((r['stored'] as num?)?.toInt() ?? 0);
-        }
-      }
+      final fireInvs = await invoiceRepo.list();
+      final i = fireInvs
+          .where((f) => f.type != 'return')    ← هذا السطر يميز الجديدة
+          .map((f) => Invoice(
+                ...
+              ))
+          .toList();
+      final fireRets = await returnsRepo.list();
+      final r = <Map<String, dynamic>>[        ← هذا الشكل يميز الجديدة
+        ...fireRets.map((f) => ...),
+        ...fireInvs
+            .where((f) => f.type == 'return')
+            .map((f) => ...),
+      ];
       return User(
         id: base.id,
         name: base.name,
