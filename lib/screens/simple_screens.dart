@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1567,6 +1569,8 @@ class AdminPointsView extends StatefulWidget {
 }
 
 class _AdminPointsViewState extends State<AdminPointsView> {
+
+  Timer? _debounce;
   List<User> _users = [];
 Set<String> _histDel = {};
   Map<String, Map<String, dynamic>> _histPatch = {};
@@ -1590,6 +1594,7 @@ Set<String> _histDel = {};
   @override
   void dispose() {
     _qCtrl.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -1923,7 +1928,12 @@ Set<String> _histDel = {};
       ),
       child: TextField(
         controller: _qCtrl,
-        onChanged: (v) => setState(() => _q = v),
+        onChanged: (v) {
+          _debounce?.cancel();
+          _debounce = Timer(const Duration(milliseconds: 300), () {
+            if (mounted) setState(() => _q = v);
+          });
+        },
         style: TextStyle(
             color: dark ? Colors.white : AppColors.ink, fontSize: 15),
         decoration: InputDecoration(
