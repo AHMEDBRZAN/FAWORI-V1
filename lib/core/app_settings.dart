@@ -210,13 +210,13 @@ class AppSettings extends ChangeNotifier {
 
       final fireInvs = await invoiceRepo.list();
       final i = fireInvs
-          .where((f) => f.type != 'return')    ← هذا السطر يميز الجديدة
+          .where((f) => f.type != 'return')
           .map((f) => Invoice(
                 ...
               ))
           .toList();
       final fireRets = await returnsRepo.list();
-      final r = <Map<String, dynamic>>[        ← هذا الشكل يميز الجديدة
+      final r = <Map<String, dynamic>>[
         ...fireRets.map((f) => ...),
         ...fireInvs
             .where((f) => f.type == 'return')
