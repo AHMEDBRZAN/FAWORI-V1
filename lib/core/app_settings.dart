@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'messenger.dart';
 import 'orders_service.dart';
 import 'store_service.dart';
+import 'repositories/orders_repo.dart';
 import 'repositories/user_repo.dart' as repo;
 
 class AppSettings extends ChangeNotifier {
