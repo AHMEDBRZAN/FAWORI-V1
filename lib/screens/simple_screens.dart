@@ -4660,26 +4660,39 @@ class FavoritesScreen extends StatelessWidget {
   }
 }
 
-class _FavoritesView extends StatelessWidget {
+class _FavoritesView extends StatefulWidget {
   const _FavoritesView();
+  @override
+  State<_FavoritesView> createState() => _FavoritesViewState();
+}
+
+class _FavoritesViewState extends State<_FavoritesView> {
+  bool _isAdding = false;
 
   Future<void> _addToCart(BuildContext context, Product p,
       [int qty = 1]) async {
-    final s = context.read<AppSettings>();
-    final uid = s.user?.id ?? '';
-    if (uid.isEmpty) return;
-    final cart = await OrdersService.loadCart(uid);
-    final exist = cart.where((c) => c.id == p.id).toList();
-    if (exist.isNotEmpty) {
-      exist.first.qty += qty;
-    } else {
-      cart.add(CartItem(
-          id: p.id, name: p.name, image: '', brand: p.brand, qty: qty));
-    }
-    await OrdersService.saveCart(uid, cart);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(s.isArabic ? '✅ أُضيف إلى السلة' : 'Added to cart')));
+    if (_isAdding) return;
+    _isAdding = true;
+    try {
+      final s = context.read<AppSettings>();
+      final uid = s.user?.id ?? '';
+      if (uid.isEmpty) return;
+      final cart = await OrdersService.loadCart(uid);
+      final exist = cart.where((c) => c.id == p.id).toList();
+      if (exist.isNotEmpty) {
+        exist.first.qty += qty;
+      } else {
+        cart.add(CartItem(
+            id: p.id, name: p.name, image: '', brand: p.brand, qty: qty));
+      }
+      await OrdersService.saveCart(uid, cart);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text(s.isArabic ? '✅ أُضيف إلى السلة' : 'Added to cart')));
+      }
+    } finally {
+      _isAdding = false;
     }
   }
 
