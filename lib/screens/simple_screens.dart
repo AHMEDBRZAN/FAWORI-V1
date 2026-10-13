@@ -1682,40 +1682,9 @@ Set<String> _histDel = {};
                   'legacy': true,
                 }),
       ];
-                id: f.id,
-                userId: f.userId,
-                no: f.no,
-                date: f.date,
-                total: f.total,
-                points: f.points,
-                stored: f.stored,
-                type: f.type,
-                items: f.items
-                    .map((it) => InvoiceItem.fromJson(it.toMap()))
-                    .toList(),
-                legacyNo: f.legacyNo,
-                customerName: f.customerName,
-                cashier: f.cashier,
-                time: f.time,
-                source: f.source,
-              ))
-          .toList();
-      final fireRets = await returnsRepo.list();
-      final r = fireRets
-          .map((f) => <String, dynamic>{
-                'id': f.id,
-                'orderId': f.orderId,
-                'userId': f.userId,
-                'date': f.date,
-                'no': f.no,
-                'purchaseNo': f.purchaseNo,
-                'total': f.total,
-                'points': f.points,
-                'stored': f.stored,
-                'items': f.items.map((it) => it.toMap()).toList(),
-                'legacy': false,
-              })
-          .toList();
+      ];
+      await ImportService.loadImported();
+      final hd = await OrdersService.loadHistTombs();
       await ImportService.loadImported();
       final hd = await OrdersService.loadHistTombs();
       final hp = await OrdersService.loadHistPatches();
