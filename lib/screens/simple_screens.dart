@@ -3599,27 +3599,40 @@ Set<String> _histDel = {};
                           fontWeight: FontWeight.w900)),
                 ),
               ),
-              if (active)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: InkWell(
-                  onTap: () => _confirmDeleteInvoice(i, s),
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 4),
-                child: InkWell(
-                  onTap: () => _confirmDeleteInvoice(i, s),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
+                            if (active)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 4),
+                  child: InkWell(
+                    onTap: () => _editInvoice(i, s),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.teal.withAlpha(20),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.edit_rounded,
+                          color: AppColors.teal, size: 16),
                     ),
-                    child: const Icon(Icons.delete_outline_rounded,
-                        color: Colors.red, size: 16),
                   ),
                 ),
-              ),
+              if (active)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 4),
+                  child: InkWell(
+                    onTap: () => _confirmDeleteInvoice(i, s),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withAlpha(20),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded,
+                          color: Colors.red, size: 16),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
