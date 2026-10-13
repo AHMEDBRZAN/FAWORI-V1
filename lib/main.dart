@@ -63,13 +63,11 @@ class _GateState extends State<_Gate> {
   }
 
   Future<void> _boot() async {
-    try {
-      await context
-          .read<AppSettings>()
-          .restoreSession()
-          .timeout(const Duration(seconds: 3));
-    } catch (_) {}
+    // إظهار التطبيق فوراً بعد ثانية واحدة فقط
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (mounted) setState(() => _ready = true);
+    // حساب النقاط بالخلفية بدون انتظار
+    context.read<AppSettings>().restoreSession();
   }
 
   @override
@@ -129,13 +127,6 @@ class _GateState extends State<_Gate> {
                 ),
               ),
               const SizedBox(height: 22),
-              const Text(
-                'شركة فاورِي',
-                style: TextStyle(
-                    color: Color(0xFF3B1A00),
-                    fontSize: 30,
-                    fontWeight: FontWeight.w900),
-              ),
               const SizedBox(height: 24),
               const SizedBox(
                 width: 28,
