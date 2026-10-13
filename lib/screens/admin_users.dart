@@ -326,10 +326,6 @@ class _EditDialog {
     final phoneC = TextEditingController(text: u.phone);
     String role = u.role;
 
-    final nameC = TextEditingController(text: u.name);
-    final phoneC = TextEditingController(text: u.phone);
-    final passC = TextEditingController();
-    String role = u.role;
     final isCtrl = s.isController;
 
     final ok = await showDialog<bool>(
