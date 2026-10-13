@@ -3921,6 +3921,9 @@ Set<String> _histDel = {};
                   TextField(
                     controller: totalCtrl,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                     onChanged: (_) {
                       final f = fmtMoney(totalCtrl.text);
                       totalCtrl.value = TextEditingValue(
