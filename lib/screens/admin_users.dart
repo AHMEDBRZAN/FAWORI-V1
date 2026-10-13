@@ -324,6 +324,8 @@ class _EditDialog {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final nameC = TextEditingController(text: u.name);
     final phoneC = TextEditingController(text: u.phone);
+
+    final passC = TextEditingController();
     String role = u.role;
 
     final isCtrl = s.isController;
