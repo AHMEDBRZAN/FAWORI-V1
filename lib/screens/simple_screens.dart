@@ -1682,9 +1682,9 @@ Set<String> _histDel = {};
                   'legacy': true,
                 }),
       ];
+                }),
       ];
       await ImportService.loadImported();
-      final hd = await OrdersService.loadHistTombs();
       await ImportService.loadImported();
       final hd = await OrdersService.loadHistTombs();
       final hp = await OrdersService.loadHistPatches();
