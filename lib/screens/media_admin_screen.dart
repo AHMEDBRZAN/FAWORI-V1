@@ -254,12 +254,15 @@ static const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF6A3AC7),
-        foregroundColor: Colors.white,
-        onPressed: () => _editDialog(),
-        icon: const Icon(Icons.add_rounded),
-        label: Text(s.isArabic ? 'خبر جديد' : 'New post'),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 100),
+        child: FloatingActionButton.extended(
+          backgroundColor: const Color(0xFF6A3AC7),
+          foregroundColor: Colors.white,
+          onPressed: () => _editDialog(),
+          icon: const Icon(Icons.add_rounded),
+          label: Text(s.isArabic ? 'خبر جديد' : 'New post'),
+        ),
       ),
       body: _loading
           ? const Center(
