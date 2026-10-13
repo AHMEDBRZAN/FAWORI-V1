@@ -63,11 +63,14 @@ class _GateState extends State<_Gate> {
   }
 
   Future<void> _boot() async {
-    // إظهار التطبيق فوراً بعد ثانية واحدة فقط
-    await Future.delayed(const Duration(milliseconds: 1200));
+    try {
+      // استرجاع الجلسة المحفوظة مع مهلة معقولة
+      await context
+          .read<AppSettings>()
+          .restoreSession()
+          .timeout(const Duration(seconds: 6));
+    } catch (_) {}
     if (mounted) setState(() => _ready = true);
-    // حساب النقاط بالخلفية بدون انتظار
-    context.read<AppSettings>().restoreSession();
   }
 
   @override
