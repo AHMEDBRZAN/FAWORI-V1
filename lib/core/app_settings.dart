@@ -6,7 +6,6 @@ import 'messenger.dart';
 import 'orders_service.dart';
 import 'store_service.dart';
 import 'repositories/orders_repo.dart';
-
 import 'repositories/invoice_repo.dart';
 import 'repositories/user_repo.dart' as repo;
 
@@ -22,7 +21,6 @@ class AppSettings extends ChangeNotifier {
   String _lastSig = '';
   int pendingCount = 0;
 
-  // ✅ صمام أمان ضد التعليق عند النقر المتكرر
   int _lastTickMs = 0;
   bool _ticking = false;
 
@@ -37,10 +35,8 @@ class AppSettings extends ChangeNotifier {
   bool get isImageAdmin => _isImageAdmin;
   bool get isLoggedIn => _user != null;
 
-  /// المتحكم: أعلى صلاحيات في النظام
   bool get isController => _user?.role == 'ctrl';
 
-  /// المدير أو المتحكم
   bool get isAdmin => _user?.role == 'admin' || _user?.role == 'ctrl';
 
   bool get isGuest => _user == null || _user!.role == 'guest';
@@ -208,20 +204,30 @@ class AppSettings extends ChangeNotifier {
     );
   }
 
-      final fireInvs = await invoiceRepo.list();
-      final i = fireInvs
-          .where((f) => f.type != 'return')
-          .map((f) => Invoice(
-                ...
-              ))
-          .toList();
-      final fireRets = await returnsRepo.list();
-      final r = <Map<String, dynamic>>[
-        ...fireRets.map((f) => ...),
-        ...fireInvs
-            .where((f) => f.type == 'return')
-            .map((f) => ...),
-      ];
+  Future<User> _withInvoiceTotals(User base) async {
+    try {
+      final invs = await invoiceRepo.list();
+      final rets = await returnsRepo.list();
+      int pts = 0;
+      int st = 0;
+      for (final f in invs) {
+        if (f.userId == base.id && f.type != 'return') {
+          pts += f.points;
+          st += f.stored;
+        }
+      }
+      for (final f in invs) {
+        if (f.userId == base.id && f.type == 'return') {
+          pts -= f.points.abs();
+          st -= f.stored.abs();
+        }
+      }
+      for (final r in rets) {
+        if (r.userId == base.id) {
+          pts -= r.points;
+          st -= r.stored;
+        }
+      }
       return User(
         id: base.id,
         name: base.name,
@@ -258,7 +264,6 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// إنشاء حساب المتحكم الأساسي تلقائياً عند أول دخول
   Future<repo.AppUser?> _ensureController() async {
     try {
       return await repo.userRepo.login('19972000', 'ad1234');
@@ -283,7 +288,6 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
-  /// دخول عادي + بوابة المتحكم الأساسية
   Future<bool> loginWithFirebase(String phone, String password) async {
     try {
       repo.AppUser? au;
@@ -306,7 +310,6 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
-  /// دعم للشاشات القديمة حتى نستبدلها
   Future<void> loginAsAdmin() async {
     final au = await _ensureController();
     if (au != null) {
