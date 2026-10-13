@@ -1682,6 +1682,106 @@ Set<String> _histDel = {};
                   'legacy': true,
                 }),
       ];
+      await ImportService.loadImported();
+      final hd = await OrdersService.loadHistTombs();
+      final hp = await OrdersService.loadHistPatches();
+      if (mounted) {
+        setState(() {
+          _altIds = alt;
+          _histDel = hd;
+          _histPatch = hp;
+          _users = u.where((x) => x.role != 'guest').toList();
+          _invoices = i;
+          _returns = r;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+    if (!quiet) setState(() => _loading = true);
+    try {
+      final fb = await userRepo.listUsers();
+      final oldUs = await OrdersService.loadUsersFiltered();
+      final alt = <String, Set<String>>{};
+      for (final a in fb) {
+        final set = <String>{a.id};
+        for (final ou in oldUs) {
+          if (ou.phone.trim().isNotEmpty &&
+              ou.phone.trim() == a.phone.trim()) {
+            set.add(ou.id);
+          } else if (ou.name.trim() == a.name.trim()) {
+            set.add(ou.id);
+          }
+        }
+        alt[a.id] = set;
+      }
+      final u = fb
+          .map((a) => User(
+                id: a.id,
+                name: a.name,
+                role: a.role,
+                phone: a.phone,
+                password: '',
+                points: a.points,
+                stored: a.stored,
+              ))
+          .toList();
+      final fireInvs = await invoiceRepo.list();
+      final i = fireInvs
+          .where((f) => f.type != 'return')
+          .map((f) => Invoice(
+                id: f.id,
+                userId: f.userId,
+                no: f.no,
+                date: f.date,
+                total: f.total,
+                points: f.points,
+                stored: f.stored,
+                type: f.type,
+                items: f.items
+                    .map((it) => InvoiceItem.fromJson(it.toMap()))
+                    .toList(),
+                legacyNo: f.legacyNo,
+                customerName: f.customerName,
+                cashier: f.cashier,
+                time: f.time,
+                source: f.source,
+              ))
+          .toList();
+      final fireRets = await returnsRepo.list();
+      final r = <Map<String, dynamic>>[
+        ...fireRets.map((f) => <String, dynamic>{
+              'id': f.id,
+              'orderId': f.orderId,
+              'userId': f.userId,
+              'date': f.date,
+              'no': f.no,
+              'purchaseNo': f.purchaseNo,
+              'total': f.total,
+              'points': f.points,
+              'stored': f.stored,
+              'items': f.items.map((it) => it.toMap()).toList(),
+              'legacy': false,
+            }),
+        ...fireInvs
+            .where((f) => f.type == 'return')
+            .map((f) => <String, dynamic>{
+                  'id': f.id,
+                  'orderId': '',
+                  'userId': f.userId,
+                  'date': f.date,
+                  'no': f.no,
+                  'purchaseNo': f.legacyNo,
+                  'total': -f.total.abs().toInt(),
+                  'points': -f.points.abs(),
+                  'stored': -f.stored.abs(),
+                  'items': f.items.map((it) => it.toMap()).toList(),
+                  'legacy': true,
+                }),
+      ];
                 }),
       ];
       await ImportService.loadImported();
