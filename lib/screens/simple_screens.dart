@@ -2309,6 +2309,207 @@ Set<String> _histDel = {};
     _backgroundReload();
   }
 
+  Future<void> _confirmDelete(User u, AppSettings s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.red),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  s.isArabic ? 'حذف نهائي' : 'Permanent delete',
+                  style: const TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ),
+        content: Text(
+            s.isArabic
+                ? 'ستُحذف جميع فواتير ومرتجعات "${u.name}". لن يُحذف الحساب نفسه. لا يمكن التراجع!'
+                : 'All invoices and returns of "${u.name}" will be deleted. Account stays. Cannot undo!',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.isArabic ? 'حذف الكل' : 'Delete all'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    for (final i in _invoices.where((x) => _idsOf(u).contains(x.userId))) {
+      await invoiceRepo.delete(i.id);
+    }
+    for (final r in _returnsOf(u)) {
+      if (r['legacy'] == true) {
+        await invoiceRepo.delete('${r['id']}');
+      } else {
+        await returnsRepo.delete('${r['id']}');
+      }
+    }
+    setState(() {
+      if (_sel?.id == u.id) _sel = null;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(s.isArabic
+              ? '🗑️ تم حذف فواتير ${u.name} — الحساب باقٍ'
+              : 'Invoices of ${u.name} deleted — account kept')));
+    }
+    _backgroundReload();
+  }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.isArabic ? 'ترحيل الفواتير والمرتجعات' : 'Migrate'),
+        content: Text(s.isArabic
+            ? 'سينقل كل السجل إلى Firestore. التكرار آمن بدون تكرار بيانات.'
+            : 'Migrate all records to Firestore. Safe to repeat.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.isArabic ? 'ابدأ' : 'Start')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+          child: CircularProgressIndicator(color: AppColors.orange)),
+    );
+    String report = '';
+    try {
+      final invs = await StoreService.loadInvoices();
+      final fireInvs = invs
+          .map((i) => FireInvoice(
+                id: i.id,
+                userId: i.userId,
+                date: i.date,
+                type: i.type,
+                no: i.no,
+                total: i.total,
+                points: i.points,
+                stored: i.stored,
+                items: i.items
+                    .map((it) => FireInvoiceItem(
+                        name: it.name,
+                        qty: it.qty,
+                        price: it.price,
+                        unitPrice: it.unitPrice,
+                        subtotal: it.subtotal))
+                    .toList(),
+                legacyNo: i.legacyNo,
+                customerName: i.customerName,
+                cashier: i.cashier,
+                time: i.time,
+                source: i.source.isEmpty ? 'app' : i.source,
+              ))
+          .toList();
+      final users = await userRepo.listUsers();
+      int histCount = 0;
+      final missed = <String>[];
+      for (final u in users) {
+        try {
+          final hist = ImportService.historyForSync(u.name);
+          if (hist.isEmpty) missed.add(u.name);
+          for (final h in hist) {
+            final total = ((h['total'] as num?)?.toDouble() ?? 0).abs();
+            final isRet = h['type'] == 'return';
+            final legacyNo = '${h['legacy_no'] ?? ''}';
+            final date = '${h['date'] ?? ''}';
+            fireInvs.add(FireInvoice(
+              id: 'h_${legacyNo}_${date}_${total.toInt()}',
+              userId: u.id,
+              date: date,
+              type: isRet ? 'return' : 'sale',
+              no: legacyNo,
+              total: total,
+              points: ((h['points'] as num?)?.toInt() ?? 0).abs(),
+              stored: ((h['stored'] as num?)?.toInt() ?? 0).abs(),
+              items: (h['items'] as List? ?? [])
+                  .map((e) => FireInvoiceItem.fromMap(
+                      Map<String, dynamic>.from(e as Map)))
+                  .toList(),
+              legacyNo: legacyNo,
+              customerName: u.name,
+              cashier: '${h['cashier'] ?? ''}',
+              time: '${h['time'] ?? ''}',
+              source: 'excel_import',
+            ));
+            histCount++;
+          }
+        } catch (_) {
+          missed.add(u.name);
+        }
+      }
+      await invoiceRepo.importMany(fireInvs);
+      final rets = await OrdersService.loadReturns();
+      final fireRets = rets
+          .map((r) => FireReturn(
+                id: '${r['id']}',
+                orderId: '${r['orderId'] ?? ''}',
+                userId: '${r['userId'] ?? ''}',
+                date: '${r['date'] ?? ''}',
+                no: '${r['no'] ?? ''}',
+                purchaseNo: '${r['purchaseNo'] ?? ''}',
+                total: (r['total'] as num?)?.toInt() ?? 0,
+                points: (r['points'] as num?)?.toInt() ?? 0,
+                stored: (r['stored'] as num?)?.toInt() ?? 0,
+                items: (r['items'] as List? ?? [])
+                    .map((e) => FireInvoiceItem.fromMap(
+                        Map<String, dynamic>.from(e as Map)))
+                    .toList(),
+              ))
+          .toList();
+      await returnsRepo.importMany(fireRets);
+      await invoiceRepo.markMigration({
+        'invoices': true,
+        'returns': true,
+        'at': DateTime.now().toIso8601String(),
+        'counts': {
+          'invoices': fireInvs.length,
+          'returns': fireRets.length,
+        },
+      });
+      report = 'فواتير التطبيق: ${invs.length}\n'
+          'سجل الحاسبة: $histCount\n'
+          'المرتجعات: ${fireRets.length}\n'
+          '${missed.isEmpty ? 'الكل دخل بنجاح' : 'بدون سجل حاسبة: ${missed.join(', ')}'}';
+    } catch (e) {
+      report = 'فشل الترحيل:\n$e';
+    }
+    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(s.isArabic ? 'نتيجة الترحيل' : 'Migration result'),
+          content: SelectableText(report),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(s.isArabic ? 'إغلاق' : 'Close')),
+          ],
+        ),
+      );
+    }
+    _backgroundReload();
+  }
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
