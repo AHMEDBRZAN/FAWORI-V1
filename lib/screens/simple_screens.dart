@@ -1631,7 +1631,57 @@ Set<String> _histDel = {};
           .toList();
       final fireInvs = await invoiceRepo.list();
       final i = fireInvs
+          .where((f) => f.type != 'return')
           .map((f) => Invoice(
+                id: f.id,
+                userId: f.userId,
+                no: f.no,
+                date: f.date,
+                total: f.total,
+                points: f.points,
+                stored: f.stored,
+                type: f.type,
+                items: f.items
+                    .map((it) => InvoiceItem.fromJson(it.toMap()))
+                    .toList(),
+                legacyNo: f.legacyNo,
+                customerName: f.customerName,
+                cashier: f.cashier,
+                time: f.time,
+                source: f.source,
+              ))
+          .toList();
+      final fireRets = await returnsRepo.list();
+      final r = <Map<String, dynamic>>[
+        ...fireRets.map((f) => <String, dynamic>{
+              'id': f.id,
+              'orderId': f.orderId,
+              'userId': f.userId,
+              'date': f.date,
+              'no': f.no,
+              'purchaseNo': f.purchaseNo,
+              'total': f.total,
+              'points': f.points,
+              'stored': f.stored,
+              'items': f.items.map((it) => it.toMap()).toList(),
+              'legacy': false,
+            }),
+        ...fireInvs
+            .where((f) => f.type == 'return')
+            .map((f) => <String, dynamic>{
+                  'id': f.id,
+                  'orderId': '',
+                  'userId': f.userId,
+                  'date': f.date,
+                  'no': f.no,
+                  'purchaseNo': f.legacyNo,
+                  'total': -f.total.abs().toInt(),
+                  'points': -f.points.abs(),
+                  'stored': -f.stored.abs(),
+                  'items': f.items.map((it) => it.toMap()).toList(),
+                  'legacy': true,
+                }),
+      ];
                 id: f.id,
                 userId: f.userId,
                 no: f.no,
@@ -2187,7 +2237,7 @@ Set<String> _histDel = {};
     if (ok != true) return;
     // ✅ 1) طوابع حذف للفواتير والمرتجعات فقط — الحساب يبقى
     for (final i in _invoices.where((x) => _idsOf(u).contains(x.userId))) {
-      await OrdersService.markInvoiceDeleted(i.id);
+      await invoiceRepo.delete(i.id);
     }
     for (final r in _returnsOf(u)) {
       if (r['legacy'] == true) {
@@ -2393,8 +2443,7 @@ Set<String> _histDel = {};
       'date': dateCtrl.text.trim(),
       'no': noCtrl.text.trim(),
     };
-    await OrdersService.markInvoicePatched(i.id, patch);
-    await OrdersService.publishInvoicePatch(i.id);
+    await invoiceRepo.update(i.id, patch);
     if (mounted) setState(() {});
     _backgroundReload();
   }
@@ -2465,11 +2514,9 @@ Set<String> _histDel = {};
       'no': noCtrl.text.trim(),
     };
     if (r['legacy'] == true) {
-      await OrdersService.markInvoicePatched(id, patch);
-      await OrdersService.publishInvoicePatch(id);
+      await invoiceRepo.update(id, patch);
     } else {
-      await OrdersService.markReturnPatched(id, patch);
-      await OrdersService.publishReturnPatch(id, false);
+      await returnsRepo.update(id, patch);
     }
     if (mounted) setState(() {});
     _backgroundReload();
