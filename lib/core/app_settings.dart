@@ -73,7 +73,7 @@ class AppSettings extends ChangeNotifier {
     return _isArabic ? (m['ar'] ?? key) : (m['en'] ?? key);
   }
 
-  List<String> _relevantIds(List<Order> orders) {
+  List<String> _relevantIds(List<FireOrder> orders) {
     if (_user == null) return const [];
     if (isAdmin) {
       return orders
@@ -114,7 +114,7 @@ class AppSettings extends ChangeNotifier {
     try {
       final created = await OrdersService.convertStoredToPoints(_user!.id);
       await OrdersService.resolveStaleSync();
-      final orders = await OrdersService.loadOrders();
+      final orders = await ordersRepo.list();
       final pending = orders.where((o) => o.status == 'pending').length;
       pendingCount = pending;
 
@@ -135,8 +135,7 @@ class AppSettings extends ChangeNotifier {
         final pendingSorted = orders
             .where((o) => o.status == 'pending')
             .toList()
-          ..sort((a, b) =>
-              (int.tryParse(b.id) ?? 0).compareTo(int.tryParse(a.id) ?? 0));
+          ..sort((a, b) => b.date.compareTo(a.date));
         for (int i = 0; i < diff && i < pendingSorted.length; i++) {
           _seenIds.remove(pendingSorted[i].id);
         }
@@ -177,7 +176,7 @@ class AppSettings extends ChangeNotifier {
   Future<void> markAllSeen() async {
     if (_user == null || _user!.role == 'guest') return;
     try {
-      final orders = await OrdersService.loadOrders();
+      final orders = await ordersRepo.list();
       final rel = _relevantIds(orders).toSet();
       final p = await SharedPreferences.getInstance();
       final seen = (p.getStringList(_seenKey) ?? []).toSet();
