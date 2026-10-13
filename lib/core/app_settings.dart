@@ -6,6 +6,8 @@ import 'messenger.dart';
 import 'orders_service.dart';
 import 'store_service.dart';
 import 'repositories/orders_repo.dart';
+
+import 'repositories/invoice_repo.dart';
 import 'repositories/user_repo.dart' as repo;
 
 class AppSettings extends ChangeNotifier {
@@ -208,8 +210,8 @@ class AppSettings extends ChangeNotifier {
 
   Future<User> _withInvoiceTotals(User base) async {
     try {
-      final invs = await StoreService.loadInvoices();
-      final rets = await OrdersService.loadReturns();
+      final invs = await invoiceRepo.list();
+      final rets = await returnsRepo.list();
       int pts = 0;
       int st = 0;
       for (final i in invs) {
@@ -219,9 +221,9 @@ class AppSettings extends ChangeNotifier {
         }
       }
       for (final r in rets) {
-        if (r['userId'] == base.id) {
-          pts -= ((r['points'] as num?)?.toInt() ?? 0);
-          st -= ((r['stored'] as num?)?.toInt() ?? 0);
+        if (r.userId == base.id) {
+          pts -= r.points;
+          st -= r.stored;
         }
       }
       return User(
