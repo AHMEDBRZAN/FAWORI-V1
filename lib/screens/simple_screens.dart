@@ -3599,6 +3599,11 @@ Set<String> _histDel = {};
                           fontWeight: FontWeight.w900)),
                 ),
               ),
+              if (active)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 4),
+                child: InkWell(
+                  onTap: () => _confirmDeleteInvoice(i, s),
               Padding(
                 padding: const EdgeInsetsDirectional.only(start: 4),
                 child: InkWell(
