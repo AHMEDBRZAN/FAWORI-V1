@@ -20,34 +20,24 @@ class _PressableState extends State<Pressable> {
   bool _pressed = false;
   int _lastTapMs = 0;
 
-  void _onTapDown(TapDownDetails d) {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastTapMs < 150) return; // حماية من الضغط المتكرر
-    _lastTapMs = now;
-    if (mounted) setState(() => _pressed = true);
-  }
-
-  void _onTapUp(TapUpDetails d) {
-    if (mounted) setState(() => _pressed = false);
-  }
-
-  void _onTapCancel() {
-    if (mounted) setState(() => _pressed = false);
-  }
-
-  void _onTap() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastTapMs < 150) return;
-    widget.onTap?.call();
-  }
-
   @override
   Widget build(BuildContext context) => GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
-        onTapCancel: _onTapCancel,
-        onTap: _onTap,
+        onTapDown: (_) {
+          if (mounted) setState(() => _pressed = true);
+        },
+        onTapUp: (_) {
+          if (mounted) setState(() => _pressed = false);
+        },
+        onTapCancel: () {
+          if (mounted) setState(() => _pressed = false);
+        },
+        onTap: () {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (now - _lastTapMs < 300) return;
+          _lastTapMs = now;
+          widget.onTap?.call();
+        },
         onLongPress: widget.onLongPress,
         child: AnimatedScale(
           scale: _pressed ? widget.scale : 1,
