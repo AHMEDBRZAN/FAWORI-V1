@@ -237,7 +237,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           const SizedBox(width: 6),
           Column(
             children: [
-              _miniBtn(Icons.edit_rounded, AppColors.teal, () => _edit(u)),
+                            _miniBtn(
+                Icons.edit_rounded,
+                (u.role == 'ctrl' && !_isCtrl) ? Colors.grey : AppColors.teal,
+                (u.role == 'ctrl' && !_isCtrl) ? null : () => _edit(u),
+              ),
               const SizedBox(height: 6),
               _miniBtn(
                 Icons.delete_rounded,
@@ -322,6 +326,17 @@ class _EditDialog {
   static Future<bool> show(BuildContext context, AppUser u) async {
     final s = context.read<AppSettings>();
     final dark = Theme.of(context).brightness == Brightness.dark;
+    if (u.role == 'ctrl' && !context.read<AppSettings>().isController) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('لا تملك صلاحية تعديل حساب المتحكم',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w800)),
+            backgroundColor: Colors.red));
+      }
+      return false;
+    }
+
     final nameC = TextEditingController(text: u.name);
     final phoneC = TextEditingController(text: u.phone);
 
