@@ -5366,6 +5366,66 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
                                 ),
                               ),
                               const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      p.mode == 0
+                                          ? (s.isArabic
+                                              ? 'الوضع: استبدال الكود القديم'
+                                              : 'Mode: replace old code')
+                                          : p.mode == 1
+                                              ? (s.isArabic
+                                                  ? 'الوضع: إدراج فوق القديم'
+                                                  : 'Mode: insert above old')
+                                              : (s.isArabic
+                                                  ? 'الوضع: إدراج تحت القديم'
+                                                  : 'Mode: insert below old'),
+                                      style: TextStyle(
+                                          color: p.mode == 0
+                                              ? Colors.grey.shade600
+                                              : AppColors.teal,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: s.isArabic
+                                        ? 'إدراج فوق القديم'
+                                        : 'Insert above old',
+                                    icon: Icon(Icons.arrow_upward_rounded,
+                                        size: 18,
+                                        color: p.mode == 1
+                                            ? Colors.white
+                                            : Colors.grey.shade600),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: p.mode == 1
+                                          ? AppColors.teal
+                                          : Colors.grey.withAlpha(30),
+                                    ),
+                                    onPressed: () => setSt(
+                                        () => p.mode = p.mode == 1 ? 0 : 1),
+                                  ),
+                                  IconButton(
+                                    tooltip: s.isArabic
+                                        ? 'إدراج تحت القديم'
+                                        : 'Insert below old',
+                                    icon: Icon(Icons.arrow_downward_rounded,
+                                        size: 18,
+                                        color: p.mode == 2
+                                            ? Colors.white
+                                            : Colors.grey.shade600),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: p.mode == 2
+                                          ? AppColors.orange
+                                          : Colors.grey.withAlpha(30),
+                                    ),
+                                    onPressed: () => setSt(
+                                        () => p.mode = p.mode == 2 ? 0 : 2),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
                               TextField(
                                 controller: p.neu,
                                 maxLines: null,
@@ -5438,8 +5498,18 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
                                     String content = _ctrl.text;
                                     int applied = 0;
                                     for (final p in patches) {
-                                      content = content.replaceAll(
-                                          p.old.text, p.neu.text);
+                                      final oldT = p.old.text;
+                                      final newT = p.neu.text;
+                                      String rep;
+                                      if (p.mode == 1) {
+                                        rep = '$newT\n$oldT';
+                                      } else if (p.mode == 2) {
+                                        rep = '$oldT\n$newT';
+                                      } else {
+                                        rep = newT;
+                                      }
+                                      content =
+                                          content.replaceAll(oldT, rep);
                                       applied++;
                                     }
                                     setState(() => _ctrl.text = content);
