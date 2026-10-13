@@ -210,8 +210,8 @@ class AppSettings extends ChangeNotifier {
 
   Future<User> _withInvoiceTotals(User base) async {
     try {
-      final invs = await invoiceRepo.list();
-      final rets = await returnsRepo.list();
+      final invs = await StoreService.loadInvoices();
+      final rets = await OrdersService.loadReturns();
       int pts = 0;
       int st = 0;
       for (final i in invs) {
@@ -221,9 +221,9 @@ class AppSettings extends ChangeNotifier {
         }
       }
       for (final r in rets) {
-        if (r.userId == base.id) {
-          pts -= r.points;
-          st -= r.stored;
+        if (r['userId'] == base.id) {
+          pts -= ((r['points'] as num?)?.toInt() ?? 0);
+          st -= ((r['stored'] as num?)?.toInt() ?? 0);
         }
       }
       return User(
