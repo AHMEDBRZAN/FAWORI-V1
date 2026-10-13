@@ -4935,7 +4935,10 @@ class _Patch {
   /// ✅ حالة الفحص: null = لم يُفحص، true = موجود، false = غير موجود
   bool? found;
   /// عدد مرات التواجد (إذا > 1 = تحذير)
-  int count = 0;
+ int count = 0;
+   /// ✅ وضع الإدراج: 0 = استبدال، 1 = فوق القديم، 2 = تحت القديم
+  int mode = 0;
+ 
   void dispose() {
     old.dispose();
     neu.dispose();
