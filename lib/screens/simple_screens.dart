@@ -10,6 +10,8 @@ import '../core/favorites.dart';
 import '../core/import_service.dart';
 import '../core/orders_service.dart';
 import '../core/repositories/user_repo.dart';
+
+import '../core/repositories/invoice_repo.dart';
 import '../core/store_service.dart';
 import '../core/theme.dart';
 import '../data/sample_data.dart';
@@ -1855,6 +1857,14 @@ Set<String> _histDel = {};
       actions: (_sel == null && s.isController)
             ? [
                 IconButton(
+                  tooltip: s.isArabic
+                      ? 'ترحيل الفواتير إلى Firestore'
+                      : 'Migrate invoices',
+                  icon: const Icon(Icons.cloud_upload_rounded,
+                      color: Color(0xFF9B59B6)),
+                  onPressed: () => _migrateInvoices(s),
+                ),
+                IconButton(
                   tooltip: s.isArabic ? 'إنشاء حساب' : 'Create account',
                   icon: const Icon(Icons.person_add_alt_1_rounded,
                       color: AppColors.teal),
@@ -1981,6 +1991,128 @@ Set<String> _histDel = {};
       ),
     );
   }
+
+  /// 🚀 ترحيل كل الفواتير والمرتجعات وسجل الحاسبة إلى Firestore
+  Future<void> _migrateInvoices(AppSettings s) async {
+    final info = await invoiceRepo.migrationInfo();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.isArabic ? 'ترحيل الفواتير والمرتجعات' : 'Migrate'),
+        content: Text(s.isArabic
+            ? 'سيُنقل كل سجل الفواتير والمرتجعات وسجل الحاسبة إلى Firestore.'
+                '${info == null ? '' : '\nسبق الترحيل مرة واحدة — التكرار آمن بدون تكرار بيانات.'}'
+            : 'Migrate all invoices, returns and PC history to Firestore.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.isArabic ? 'ابدأ الترحيل' : 'Start')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final invs = await StoreService.loadInvoices();
+      final fireInvs = invs
+          .map((i) => FireInvoice(
+                id: i.id,
+                userId: i.userId,
+                date: i.date,
+                type: i.type,
+                no: i.no,
+                total: i.total,
+                points: i.points,
+                stored: i.stored,
+                items: i.items
+                    .map((it) => FireInvoiceItem(
+                        name: it.name,
+                        qty: it.qty,
+                        price: it.price,
+                        unitPrice: it.unitPrice,
+                        subtotal: it.subtotal))
+                    .toList(),
+                legacyNo: i.legacyNo,
+                customerName: i.customerName,
+                cashier: i.cashier,
+                time: i.time,
+                source: i.source.isEmpty ? 'app' : i.source,
+              ))
+          .toList();
+      final users = await userRepo.listUsers();
+      for (final u in users) {
+        final hist = ImportService.historyForSync(u.name);
+        for (final h in hist) {
+          final total = ((h['total'] as num?)?.toDouble() ?? 0).abs();
+          final isRet = h['type'] == 'return';
+          final legacyNo = '${h['legacy_no'] ?? ''}';
+          final date = '${h['date'] ?? ''}';
+          fireInvs.add(FireInvoice(
+            id: 'h_${legacyNo}_${date}_${total.toInt()}',
+            userId: u.id,
+            date: date,
+            type: isRet ? 'return' : 'sale',
+            no: legacyNo,
+            total: total,
+            points: ((h['points'] as num?)?.toInt() ?? 0).abs(),
+            stored: ((h['stored'] as num?)?.toInt() ?? 0).abs(),
+            items: (h['items'] as List? ?? [])
+                .map((e) => FireInvoiceItem.fromMap(
+                    Map<String, dynamic>.from(e as Map)))
+                .toList(),
+            legacyNo: legacyNo,
+            customerName: u.name,
+            cashier: '${h['cashier'] ?? ''}',
+            time: '${h['time'] ?? ''}',
+            source: 'excel_import',
+          ));
+        }
+      }
+      await invoiceRepo.importMany(fireInvs);
+      final rets = await OrdersService.loadReturns();
+      final fireRets = rets
+          .map((r) => FireReturn(
+                id: '${r['id']}',
+                orderId: '${r['orderId'] ?? ''}',
+                userId: '${r['userId'] ?? ''}',
+                date: '${r['date'] ?? ''}',
+                no: '${r['no'] ?? ''}',
+                purchaseNo: '${r['purchaseNo'] ?? ''}',
+                total: (r['total'] as num?)?.toInt() ?? 0,
+                points: (r['points'] as num?)?.toInt() ?? 0,
+                stored: (r['stored'] as num?)?.toInt() ?? 0,
+                items: (r['items'] as List? ?? [])
+                    .map((e) => FireInvoiceItem.fromMap(
+                        Map<String, dynamic>.from(e as Map)))
+                    .toList(),
+              ))
+          .toList();
+      await returnsRepo.importMany(fireRets);
+      await invoiceRepo.markMigration({
+        'invoices': true,
+        'returns': true,
+        'at': DateTime.now().toIso8601String(),
+        'counts': {
+          'invoices': fireInvs.length,
+          'returns': fireRets.length,
+        },
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '✅ تم ترحيل ${fireInvs.length} فاتورة و ${fireRets.length} مرتجع')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('فشل الترحيل: $e'),
+            backgroundColor: Colors.red));
+      }
+    }
+  }
+
 
   Future<void> _confirmDelete(User u, AppSettings s) async {
     final ok = await showDialog<bool>(
