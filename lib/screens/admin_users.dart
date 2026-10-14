@@ -639,41 +639,39 @@ class _CreateDialog {
                           : 'Password (min 6)',
                       Icons.lock_rounded, const Color(0xFF9B59B6), dark,
                       obscure: true),
-                  if (isCtrl) ...[
-                    const SizedBox(height: 14),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(s.isArabic ? 'الدور:' : 'Role:',
-                          style: TextStyle(
-                              color: dark
-                                  ? Colors.grey.shade300
-                                  : Colors.grey.shade600,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12)),
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(s.isArabic ? 'الدور:' : 'Role:',
+                        style: TextStyle(
+                            color: dark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade600,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12)),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Wrap(
+                      children: [
+                        if (isCtrl)
+                          roleChip(
+                              s.isArabic ? 'متحكم' : 'Controller',
+                              'ctrl',
+                              const Color(0xFFB71C1C)),
+                        if (isCtrl)
+                          roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
+                              Colors.red),
+                        roleChip(s.isArabic ? 'وكيل' : 'Agent', 'agent',
+                            const Color(0xFF9B59B6)),
+                        roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
+                            AppColors.orange),
+                        roleChip(s.isArabic ? 'عميل' : 'Client', 'client',
+                            AppColors.teal),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                     child: Wrap(
-                        children: [
-                          if (isCtrl)
-                            roleChip(
-                                s.isArabic ? 'متحكم' : 'Controller',
-                                'ctrl',
-                                const Color(0xFFB71C1C)),
-                          if (isCtrl)
-                            roleChip(s.isArabic ? 'مدير' : 'Admin', 'admin',
-                                Colors.red),
-                          roleChip(s.isArabic ? 'وكيل' : 'Agent', 'agent',
-                              const Color(0xFF9B59B6)),
-                          roleChip(s.isArabic ? 'صباغ' : 'Painter', 'tech',
-                              AppColors.orange),
-                          roleChip(s.isArabic ? 'عميل' : 'Client', 'client',
-                              AppColors.teal),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
