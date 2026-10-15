@@ -113,7 +113,12 @@ class _CropDialogState extends State<_CropDialog> {
                     child: Transform.scale(
                       scale: _z,
                       child: Image.network(widget.srcUrl,
-                          width: _rw, height: _rh, fit: BoxFit.fill),
+                          width: _rw,
+                          height: _rh,
+                          fit: BoxFit.fill,
+                          errorBuilder: (c, o, st) => const Center(
+                              child: Icon(Icons.image_not_supported_outlined,
+                                  color: Colors.white54, size: 60))),
                     ),
                   ),
                   Center(
@@ -215,8 +220,12 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     if (file == null) return '';
     final reader = html.FileReader();
     reader.readAsDataUrl(file);
-    await reader.onLoad.first;
-    final srcUrl = '${reader.result}';
+    await reader.onLoadEnd.first.timeout(const Duration(seconds: 30));
+    final res = reader.result;
+    if (res == null) {
+      throw Exception('تعذر قراءة الصورة من الجهاز — جرب صورة JPG أو PNG');
+    }
+    final srcUrl = '$res';
     final bytes = base64Decode(srcUrl.split(',').last);
     final cropped = await showDialog<String>(
         context: context, builder: (_) => _CropDialog(srcUrl, bytes));
