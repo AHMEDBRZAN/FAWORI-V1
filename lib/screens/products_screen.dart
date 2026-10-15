@@ -8,6 +8,7 @@ import '../core/guest_guard.dart';
 import '../core/orders_service.dart';
 import '../core/theme.dart';
 import '../data/sample_data.dart';
+import '../core/repositories/product_repo.dart';
 import '../widgets/pressable.dart';
 import 'cart_screen.dart';
 import 'login_screen.dart';
@@ -83,14 +84,45 @@ class _ProductsScreenState extends State<ProductsScreen> {
   String _q = '';
   String? _focusBrand;
   Map<String, String> _prodImg = <String, String>{};
+  List<Product> _products = [];
+  bool _loadingProducts = true;
   final _qCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
+
+  Future<void> _loadProducts() async {
+    try {
+      final fire = await productRepo.list().timeout(const Duration(seconds: 8));
+      if (!mounted) return;
+      setState(() {
+        _products = fire
+            .map((f) => Product(
+                  id: f.id,
+                  name: f.name,
+                  brand: f.brand,
+                  description: f.description,
+                  image: f.image,
+                  category: f.category,
+                  price: f.price,
+                ))
+            .toList();
+        _loadingProducts = false;
+      });
+    } catch (_) {
+      // ✅ سقوط احتياطي للكتالوج المحلي عند فشل الاتصال
+      if (!mounted) return;
+      setState(() {
+        _products = sampleData;
+        _loadingProducts = false;
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _refreshCount();
     _loadProdImages();
+    _loadProducts();
     if (widget.initialBrand != null && _brands.any((b) => b.key == widget.initialBrand)) {
       _focusBrand = widget.initialBrand;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -180,7 +212,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   _BrandCfg _brandCfg(String key) => _brands.firstWhere((b) => b.key == key);
 
   List<Product> _filterBrand(String brandKey) {
-    final base = sampleData.where((p) => p.brand == brandKey);
+    final base = _products.where((p) => p.brand == brandKey);
     if (_q.trim().isEmpty) return base.toList();
     final q = _q.trim().toLowerCase();
     return base.where((p) => p.name.toLowerCase().contains(q) || p.description.toLowerCase().contains(q)).toList();
@@ -236,10 +268,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ),
         ],
       ),
-      body: ListView(
-        controller: _scrollCtrl,
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: _loadingProducts
+          ? const Center(child: CircularProgressIndicator(color: AppColors.orange))
+          : RefreshIndicator(
+              onRefresh: () async {
+                await _loadProducts();
+                await _loadProdImages();
+              },
+              color: AppColors.orange,
+              child: ListView(
+                controller: _scrollCtrl,
+                padding: const EdgeInsets.all(16),
+                children: [
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
@@ -252,6 +292,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
             child: TextField(
               controller: _qCtrl,
+              selectionControls: materialTextSelectionControls,
+              onTap: () {
+                _qCtrl.selection = TextSelection(
+                    baseOffset: 0, extentOffset: _qCtrl.text.length);
+              },
               onChanged: (v) => setState(() => _q = v),
               style: TextStyle(color: dark ? Colors.white : AppColors.ink, fontSize: 15),
               decoration: InputDecoration(
@@ -327,8 +372,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
           for (final b in (_focusBrand == null ? _brands : _brands.where((x) => x.key == _focusBrand).toList()))
             _buildSection(b, dark, s),
-        ],
-      ),
+                ],
+              ),
+            ),
     );
   }
 
