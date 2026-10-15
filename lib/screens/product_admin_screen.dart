@@ -10,7 +10,8 @@ import '../core/repositories/product_repo.dart';
 import '../core/theme.dart';
 import '../data/sample_data.dart';
 
-const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
+const String _kProxyBase = 'https://fawori.ahmdkaka1997.workers.dev';
+const String _kProxy = '$_kProxyBase/put';
 const String _kImgBase =
     'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main/';
 
@@ -212,6 +213,19 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
       if (mounted) setState(() => _items = list);
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<bool> _deleteImageFromRepo(String url) async {
+    const marker = '/assets/data/img/';
+    final i = url.indexOf(marker);
+    if (i < 0) return false;
+    final path = url.substring(i + 1);
+    final r = await http
+        .post(Uri.parse('$_kProxyBase/delete'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'path': path}))
+        .timeout(const Duration(seconds: 30));
+    return r.statusCode == 200 || r.statusCode == 201;
   }
 
   Future<String> _uploadImage(
@@ -452,6 +466,55 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                             Icons.broken_image_rounded,
                             size: 40,
                             color: Colors.red)),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red)),
+                      onPressed: () async {
+                        final url = imgC.text.trim();
+                        final confirm = await showDialog<bool>(
+                            context: ctx,
+                            builder: (d) => AlertDialog(
+                                  title: const Text('حذف الصورة'),
+                                  content: Text(url.contains('/assets/data/img/')
+                                      ? 'سيُحذف الملف من المستودع نهائياً ويفرغ حقل الرابط.'
+                                      : 'سيُفرغ حقل الرابط فقط (الرابط خارجي).'),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(d, false),
+                                        child: const Text('إلغاء')),
+                                    ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red),
+                                        onPressed: () => Navigator.pop(d, true),
+                                        child: const Text('حذف')),
+                                  ],
+                                ));
+                        if (confirm != true) return;
+                        if (url.contains('/assets/data/img/')) {
+                          setSt(() =>
+                              uploadStatus = 'جارٍ حذف الملف من المستودع...');
+                          try {
+                            final done = await _deleteImageFromRepo(url);
+                            setSt(() => uploadStatus = done
+                                ? '✅ حُذفت الصورة من المستودع'
+                                : '❌ فشل الحذف من المستودع');
+                          } catch (e) {
+                            setSt(() => uploadStatus = '❌ فشل الحذف: $e');
+                          }
+                        } else {
+                          setSt(() => uploadStatus = '✅ أُفرغ حقل الرابط');
+                        }
+                        imgC.text = '';
+                      },
+                      icon: const Icon(Icons.delete_forever_rounded, size: 18),
+                      label: const Text('حذف الصورة'),
+                    ),
                   ),
                 ],
               ],
