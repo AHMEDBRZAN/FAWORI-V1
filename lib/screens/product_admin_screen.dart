@@ -225,7 +225,10 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'path': path}))
         .timeout(const Duration(seconds: 30));
-    return r.statusCode == 200 || r.statusCode == 201;
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw Exception('delete ${r.statusCode}: ${r.body}');
+    }
+    return true;
   }
 
   Future<String> _uploadImage(
