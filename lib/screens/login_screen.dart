@@ -25,6 +25,23 @@ class _LoginScreenState extends State<LoginScreen>
   String? _err;
   bool _obscure = true;
   bool _open = false;
+  int _lastTapMs = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneFocus.addListener(_syncGlow);
+    _passFocus.addListener(_syncGlow);
+  }
+
+  void _syncGlow() {
+    if (!mounted) return;
+    if (_phoneFocus.hasFocus || _passFocus.hasFocus) {
+      _glow.stop();
+    } else {
+      _glow.repeat();
+    }
+  }
 
   @override
   void dispose() {
@@ -313,6 +330,12 @@ class _LoginScreenState extends State<LoginScreen>
                                               selectionControls:
                                                   materialTextSelectionControls,
                                               onTap: () {
+                                                final now = DateTime.now()
+                                                    .millisecondsSinceEpoch;
+                                                if (now - _lastTapMs < 450) {
+                                                  return;
+                                                }
+                                                _lastTapMs = now;
                                                 _phone.selection =
                                                     TextSelection(
                                                         baseOffset: 0,
@@ -370,6 +393,12 @@ class _LoginScreenState extends State<LoginScreen>
                                               selectionControls:
                                                   materialTextSelectionControls,
                                               onTap: () {
+                                                final now = DateTime.now()
+                                                    .millisecondsSinceEpoch;
+                                                if (now - _lastTapMs < 450) {
+                                                  return;
+                                                }
+                                                _lastTapMs = now;
                                                 _pass.selection =
                                                     TextSelection(
                                                         baseOffset: 0,
