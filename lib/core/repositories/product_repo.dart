@@ -55,6 +55,15 @@ class ProductRepo {
     return out;
   }
 
+  /// ✅ استماع حي لتغييرات المنتجات
+  Stream<List<FireProduct>> stream() {
+    return _col.snapshots().map((snap) {
+      final out = snap.docs.map(FireProduct.fromDoc).toList();
+      out.sort((a, b) => a.name.compareTo(b.name));
+      return out;
+    });
+  }
+
   Future<void> save(FireProduct p) => _col.doc(p.id).set(p.toMap());
 
   Future<void> update(String id, Map<String, dynamic> patch) =>
