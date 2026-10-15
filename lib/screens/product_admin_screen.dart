@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +14,165 @@ import '../data/sample_data.dart';
 const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
 const String _kImgBase =
     'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main/';
+
+/// ✅ نافذة قص الصورة قبل الرفع
+class _CropDialog extends StatefulWidget {
+  final String srcUrl;
+  final Uint8List bytes;
+  const _CropDialog(this.srcUrl, this.bytes);
+  @override
+  State<_CropDialog> createState() => _CropDialogState();
+}
+
+class _CropDialogState extends State<_CropDialog> {
+  static const double _S = 280;
+  double _z = 1;
+  double _dx = 0;
+  double _dy = 0;
+  double _rw = _S;
+  double _rh = _S;
+
+  @override
+  void initState() {
+    super.initState();
+    _decode();
+  }
+
+  Future<void> _decode() async {
+    final codec = await ui.instantiateImageCodec(widget.bytes);
+    final frame = await codec.getNextFrame();
+    final w = frame.image.width.toDouble();
+    final h = frame.image.height.toDouble();
+    final s = _S / w > _S / h ? _S / w : _S / h;
+    if (!mounted) return;
+    setState(() {
+      _rw = w * s;
+      _rh = h * s;
+    });
+  }
+
+  void _clamp() {
+    final mx = (_rw * _z - _S) / 2;
+    final my = (_rh * _z - _S) / 2;
+    _dx = _dx.clamp(-mx, mx);
+    _dy = _dy.clamp(-my, my);
+  }
+
+  Future<String> _export() async {
+    final img = html.ImageElement()..src = widget.srcUrl;
+    await img.onLoad.first;
+    final W = img.naturalWidth.toDouble();
+    final H = img.naturalHeight.toDouble();
+    final s = _S / W > _S / H ? _S / W : _S / H;
+    final ds = s * _z;
+    final destW = W * ds;
+    final destH = H * ds;
+    final destX = _S / 2 - destW / 2 + _dx;
+    final destY = _S / 2 - destH / 2 + _dy;
+    final srcX = (0 - destX) / ds;
+    final srcY = (0 - destY) / ds;
+    final srcW = _S / ds;
+    final srcH = _S / ds;
+    const int out = 600;
+    final canvas = html.CanvasElement(width: out, height: out);
+    canvas.context2D.drawImageScaledFromSource(
+        img, srcX, srcY, srcW, srcH, 0, 0, out, out);
+    var url = canvas.toDataUrl('image/webp', 0.85);
+    if (!url.startsWith('data:image/webp')) {
+      url = canvas.toDataUrl('image/jpeg', 0.85);
+    }
+    return url;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onPanUpdate: (d) => setState(() {
+              _dx += d.delta.dx;
+              _dy += d.delta.dy;
+              _clamp();
+            }),
+            child: Container(
+              width: _S,
+              height: _S,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: _S / 2 - _rw / 2 + _dx,
+                    top: _S / 2 - _rh / 2 + _dy,
+                    child: Transform.scale(
+                      scale: _z,
+                      child: Image.memory(widget.bytes,
+                          width: _rw, height: _rh, fit: BoxFit.fill),
+                    ),
+                  ),
+                  Center(
+                    child: Icon(Icons.crop_free_rounded,
+                        color: Colors.white.withAlpha(90), size: _S - 40),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
+                onPressed: () => setState(() {
+                  _z = (_z / 1.25).clamp(1.0, 4.0);
+                  _clamp();
+                }),
+              ),
+              const SizedBox(width: 16),
+              IconButton(
+                icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
+                onPressed: () => setState(() {
+                  _z = (_z * 1.25).clamp(1.0, 4.0);
+                  _clamp();
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إلغاء',
+                    style: TextStyle(color: Colors.white70)),
+              ),
+              const SizedBox(width: 20),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.teal,
+                    foregroundColor: Colors.white),
+                onPressed: () async {
+                  final url = await _export();
+                  if (context.mounted) Navigator.pop(context, url);
+                },
+                child: const Text('قص ورفع'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// ✅ شاشة إدارة المنتجات (مدير ومتحكم)
 class ProductAdminScreen extends StatefulWidget {
@@ -57,24 +218,17 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     reader.readAsDataUrl(file);
     await reader.onLoad.first;
     final srcUrl = '${reader.result}';
-    // ✅ ضغط الصورة قبل الرفع: أقصى ضلع 900 بكسل بصيغة webp
-    final img = html.ImageElement()..src = srcUrl;
-    await img.onLoad.first;
-    const double maxSide = 900;
-    double w = img.naturalWidth.toDouble();
-    double h = img.naturalHeight.toDouble();
-    final scale = (w > h ? maxSide / w : maxSide / h).clamp(0.0, 1.0);
-    w = (w * scale).roundToDouble();
-    h = (h * scale).roundToDouble();
-    final canvas = html.CanvasElement(width: w.toInt(), height: h.toInt());
-    canvas.context2D.drawImageScaled(img, 0, 0, w, h);
-    final outUrl = canvas.toDataUrl('image/webp', 0.82);
-    final base64Part = outUrl.split(',').last;
+    final bytes = base64Decode(srcUrl.split(',').last);
+    final cropped = await showDialog<String>(
+        context: context, builder: (_) => _CropDialog(srcUrl, bytes));
+    if (cropped == null || cropped.isEmpty) return '';
+    final base64Part = cropped.split(',').last;
     if (base64Part.length > 950 * 1024) {
-      throw Exception('الصورة كبيرة جداً حتى بعد الضغط — اختر صورة أبسط');
+      throw Exception('الصورة كبيرة جداً حتى بعد القص — قلص التكبير');
     }
+    final ext = cropped.startsWith('data:image/webp') ? 'webp' : 'jpg';
     final path =
-        'assets/data/img/p_${DateTime.now().millisecondsSinceEpoch}.webp';
+        'assets/data/img/p_${DateTime.now().millisecondsSinceEpoch}.$ext';
     final r = await http
         .post(Uri.parse(_kProxy),
             headers: {'Content-Type': 'application/json'},
