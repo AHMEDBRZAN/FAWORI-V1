@@ -5052,7 +5052,7 @@ class _AdminCodeViewState extends State<AdminCodeView> {
     try {
       final r = await http
           .get(Uri.parse(
-              'https://api.github.com/repos/AHMEDBRZAN/FAWORI-V1/git/trees/main?recursive=1&t=${DateTime.now().millisecondsSinceEpoch}'))
+              'https://fawori.ahmdkaka1997.workers.dev/tree?t=${DateTime.now().millisecondsSinceEpoch}'))
           .timeout(const Duration(seconds: 12));
       if (r.statusCode != 200) throw Exception('HTTP ${r.statusCode}');
       final j = jsonDecode(r.body);
