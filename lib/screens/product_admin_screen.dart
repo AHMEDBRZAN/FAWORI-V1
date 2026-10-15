@@ -38,16 +38,18 @@ class _CropDialogState extends State<_CropDialog> {
   }
 
   Future<void> _decode() async {
-    final img = html.ImageElement()..src = widget.srcUrl;
-    await img.onLoad.first;
-    final w = img.naturalWidth.toDouble();
-    final h = img.naturalHeight.toDouble();
-    final s = _S / w > _S / h ? _S / w : _S / h;
-    if (!mounted) return;
-    setState(() {
-      _rw = w * s;
-      _rh = h * s;
-    });
+    try {
+      final img = html.ImageElement()..src = widget.srcUrl;
+      await img.onLoad.first;
+      final w = img.naturalWidth.toDouble();
+      final h = img.naturalHeight.toDouble();
+      final s = _S / w > _S / h ? _S / w : _S / h;
+      if (!mounted) return;
+      setState(() {
+        _rw = w * s;
+        _rh = h * s;
+      });
+    } catch (_) {}
   }
 
   void _clamp() {
@@ -212,12 +214,18 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<String> _uploadImage() async {
+  Future<String> _uploadImage(
+      void Function(bool) busy, void Function(String) status) async {
     final picker = html.FileUploadInputElement()..accept = 'image/*';
+    status('جارٍ فتح نافذة الاختيار...');
     picker.click();
     await picker.onChange.first;
     final file = picker.files?.first;
-    if (file == null) return '';
+    if (file == null) {
+      status('لم يتم اختيار صورة');
+      return '';
+    }
+    status('تم اختيار الصورة — جارٍ القراءة...');
     final reader = html.FileReader();
     reader.readAsDataUrl(file);
     await reader.onLoadEnd.first.timeout(const Duration(seconds: 30));
@@ -226,26 +234,36 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
       throw Exception('تعذر قراءة الصورة من الجهاز — جرب صورة JPG أو PNG');
     }
     final srcUrl = '$res';
+    status('جارٍ فتح نافذة القص...');
     final bytes = base64Decode(srcUrl.split(',').last);
     final cropped = await showDialog<String>(
         context: context, builder: (_) => _CropDialog(srcUrl, bytes));
-    if (cropped == null || cropped.isEmpty) return '';
+    if (cropped == null || cropped.isEmpty) {
+      status('أُلغي القص — لا رفع');
+      return '';
+    }
     final base64Part = cropped.split(',').last;
     if (base64Part.length > 950 * 1024) {
       throw Exception('الصورة كبيرة جداً حتى بعد القص — قلص التكبير');
     }
+    busy(true);
+    status('جارٍ الرفع إلى المستودع...');
     final ext = cropped.startsWith('data:image/webp') ? 'webp' : 'jpg';
     final path =
         'assets/data/img/p_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    final r = await http
-        .post(Uri.parse(_kProxy),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'path': path, 'content': base64Part}))
-        .timeout(const Duration(seconds: 40));
-    if (r.statusCode != 200 && r.statusCode != 201) {
-      throw Exception('upload ${r.statusCode}');
+    try {
+      final r = await http
+          .post(Uri.parse(_kProxy),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'path': path, 'content': base64Part}))
+          .timeout(const Duration(seconds: 40));
+      if (r.statusCode != 200 && r.statusCode != 201) {
+        throw Exception('upload ${r.statusCode}');
+      }
+      return '$_kImgBase$path';
+    } finally {
+      busy(false);
     }
-    return '$_kImgBase$path';
   }
 
   Future<void> _migrate(AppSettings s) async {
@@ -317,6 +335,7 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     final descC = TextEditingController(text: p?.description ?? '');
     final imgC = TextEditingController(text: p?.image ?? '');
     bool uploading = false;
+    String uploadStatus = '';
 
     final ok = await showDialog<bool>(
       context: context,
@@ -363,12 +382,20 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                     onPressed: uploading
                         ? null
                         : () async {
-                            setSt(() => uploading = true);
+                            setSt(() => uploadStatus = '');
                             try {
-                              final url = await _uploadImage();
-                              if (url.isNotEmpty) imgC.text = url;
+                              final url = await _uploadImage(
+                                (v) => setSt(() => uploading = v),
+                                (t) => setSt(() => uploadStatus = t),
+                              );
+                              if (url.isNotEmpty) {
+                                imgC.text = url;
+                                setSt(() =>
+                                    uploadStatus = '✅ نجح الرفع — الرابط في الحقل');
+                              }
                             } catch (e) {
                               setSt(() => uploading = false);
+                              setSt(() => uploadStatus = '❌ فشل الرفع');
                               if (ctx.mounted) {
                                 showDialog(
                                     context: ctx,
@@ -384,7 +411,6 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                                         ));
                               }
                             }
-                            setSt(() => uploading = false);
                           },
                     icon: uploading
                         ? const SizedBox(
@@ -398,6 +424,19 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                         : 'Upload image'),
                   ),
                 ),
+                if (uploadStatus.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(uploadStatus,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: uploadStatus.startsWith('✅')
+                              ? Colors.green
+                              : uploadStatus.startsWith('❌')
+                                  ? Colors.red
+                                  : const Color(0xFF9B59B6))),
+                ],
                 if (imgC.text.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   ClipRRect(
