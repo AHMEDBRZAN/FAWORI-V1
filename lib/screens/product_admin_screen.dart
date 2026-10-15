@@ -589,6 +589,7 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
       controller: c,
       keyboardType: kt,
       selectionControls: materialTextSelectionControls,
+      magnifierConfiguration: TextMagnifierConfiguration.disabled,
       onTap: () {
         c.selection =
             TextSelection(baseOffset: 0, extentOffset: c.text.length);
@@ -663,6 +664,7 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                   child: TextField(
                     controller: _qCtrl,
                     selectionControls: materialTextSelectionControls,
+                    magnifierConfiguration: TextMagnifierConfiguration.disabled,
                     onChanged: (v) => setState(() => _q = v),
                     style: TextStyle(
                         color: dark ? Colors.white : AppColors.ink),
