@@ -63,13 +63,17 @@ class _GateState extends State<_Gate> {
   }
 
   Future<void> _boot() async {
-    try {
-      // استرجاع الجلسة المحفوظة مع مهلة معقولة
-      await context
-          .read<AppSettings>()
-          .restoreSession()
-          .timeout(const Duration(seconds: 6));
-    } catch (_) {}
+    final st = context.read<AppSettings>();
+    for (int i = 0; i < 3; i++) {
+      try {
+        await st.restoreSession().timeout(const Duration(seconds: 8));
+        break;
+      } catch (_) {
+        if (i < 2) {
+          await Future.delayed(const Duration(milliseconds: 800));
+        }
+      }
+    }
     if (mounted) setState(() => _ready = true);
   }
 
