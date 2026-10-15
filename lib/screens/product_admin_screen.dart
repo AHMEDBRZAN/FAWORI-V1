@@ -56,14 +56,25 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     final reader = html.FileReader();
     reader.readAsDataUrl(file);
     await reader.onLoad.first;
-    final dataUrl = '${reader.result}';
-    final base64Part = dataUrl.split(',').last;
-    String ext = 'webp';
-    if (file.name != null && file.name!.contains('.')) {
-      ext = file.name!.split('.').last.toLowerCase();
+    final srcUrl = '${reader.result}';
+    // ✅ ضغط الصورة قبل الرفع: أقصى ضلع 900 بكسل بصيغة webp
+    final img = html.ImageElement()..src = srcUrl;
+    await img.onLoad.first;
+    const double maxSide = 900;
+    double w = img.naturalWidth.toDouble();
+    double h = img.naturalHeight.toDouble();
+    final scale = (w > h ? maxSide / w : maxSide / h).clamp(0.0, 1.0);
+    w = (w * scale).roundToDouble();
+    h = (h * scale).roundToDouble();
+    final canvas = html.CanvasElement(width: w.toInt(), height: h.toInt());
+    canvas.context2D.drawImageScaled(img, 0, 0, w, h);
+    final outUrl = canvas.toDataUrl('image/webp', 0.82);
+    final base64Part = outUrl.split(',').last;
+    if (base64Part.length > 950 * 1024) {
+      throw Exception('الصورة كبيرة جداً حتى بعد الضغط — اختر صورة أبسط');
     }
     final path =
-        'assets/data/img/p_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        'assets/data/img/p_${DateTime.now().millisecondsSinceEpoch}.webp';
     final r = await http
         .post(Uri.parse(_kProxy),
             headers: {'Content-Type': 'application/json'},
