@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import 'admin_users.dart';
 import 'home_screen.dart';
 import 'media_admin_screen.dart';
+import 'product_admin_screen.dart';
 import 'points_fire_screen.dart';
 import 'products_screen.dart';
 import 'profile_screen.dart';
@@ -99,6 +100,13 @@ class _MainScreenState extends State<MainScreen> {
       screens.add(const ProfileScreen());
       icons.add(Icons.person_rounded);
       labels.add(s.isArabic ? 'ملف شخصي' : 'Profile');
+    }
+
+    // التبويب: إدارة المنتجات (للمدير والمتحكم)
+    if (isAdmin) {
+      screens.add(const ProductAdminScreen());
+      icons.add(Icons.inventory_2_rounded);
+      labels.add(s.isArabic ? 'إدارة المنتجات' : 'Products admin');
     }
 
     // التبويب 5: الملف الشخصي (للمتحكم والمدير)
