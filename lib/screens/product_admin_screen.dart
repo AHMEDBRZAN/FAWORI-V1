@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -39,10 +38,10 @@ class _CropDialogState extends State<_CropDialog> {
   }
 
   Future<void> _decode() async {
-    final codec = await ui.instantiateImageCodec(widget.bytes);
-    final frame = await codec.getNextFrame();
-    final w = frame.image.width.toDouble();
-    final h = frame.image.height.toDouble();
+    final img = html.ImageElement()..src = widget.srcUrl;
+    await img.onLoad.first;
+    final w = img.naturalWidth.toDouble();
+    final h = img.naturalHeight.toDouble();
     final s = _S / w > _S / h ? _S / w : _S / h;
     if (!mounted) return;
     setState(() {
@@ -113,7 +112,7 @@ class _CropDialogState extends State<_CropDialog> {
                     top: _S / 2 - _rh / 2 + _dy,
                     child: Transform.scale(
                       scale: _z,
-                      child: Image.memory(widget.bytes,
+                      child: Image.network(widget.srcUrl,
                           width: _rw, height: _rh, fit: BoxFit.fill),
                     ),
                   ),
