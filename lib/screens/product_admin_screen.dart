@@ -218,8 +218,12 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
       void Function(bool) busy, void Function(String) status) async {
     final picker = html.FileUploadInputElement()..accept = 'image/*';
     status('جارٍ فتح نافذة الاختيار...');
+    html.document.body!.append(picker);
     picker.click();
-    await picker.onChange.first;
+    try {
+      await picker.onChange.first.timeout(const Duration(seconds: 90));
+    } catch (_) {}
+    picker.remove();
     final file = picker.files?.first;
     if (file == null) {
       status('لم يتم اختيار صورة');
