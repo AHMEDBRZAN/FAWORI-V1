@@ -313,6 +313,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: TextField(
               controller: _qCtrl,
               selectionControls: materialTextSelectionControls,
+              magnifierConfiguration: TextMagnifierConfiguration.disabled,
               onTap: () {
                 _qCtrl.selection = TextSelection(
                     baseOffset: 0, extentOffset: _qCtrl.text.length);
