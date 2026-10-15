@@ -329,6 +329,9 @@ class _LoginScreenState extends State<LoginScreen>
                                                   TextInputType.phone,
                                               selectionControls:
                                                   materialTextSelectionControls,
+                                              magnifierConfiguration:
+                                                  TextMagnifierConfiguration
+                                                      .disabled,
                                               onTap: () {
                                                 final now = DateTime.now()
                                                     .millisecondsSinceEpoch;
@@ -392,6 +395,9 @@ class _LoginScreenState extends State<LoginScreen>
                                               obscureText: _obscure,
                                               selectionControls:
                                                   materialTextSelectionControls,
+                                              magnifierConfiguration:
+                                                  TextMagnifierConfiguration
+                                                      .disabled,
                                               onTap: () {
                                                 final now = DateTime.now()
                                                     .millisecondsSinceEpoch;
