@@ -67,22 +67,77 @@ class _WalletScreenState extends State<WalletScreen> {
   Future<void> _load() async {
     final s = context.read<AppSettings>();
     try {
-      final uid = s.user?.id ?? '';
-      if (uid.isNotEmpty && !s.isGuest) {
-        await OrdersService.recalcUserTotals(uid);
-      }
-    } catch (_) {}
-    try {
       await s.refreshUser();
     } catch (_) {}
-    final invs = await OrdersService.loadInvoicesFiltered();
-    final rets = await OrdersService.loadReturnsFiltered();
-    final hist = await ImportService.historyFor(s.user?.name ?? '');
+    final uid = s.user?.id ?? '';
+    if (uid.isEmpty || s.isGuest) {
+      if (mounted) setState(() {
+        _invoices = [];
+        _returns = [];
+        _history = const [];
+      });
+      return;
+    }
+    final fireInvs = await invoiceRepo.list();
+    final invs = fireInvs
+        .where((f) => f.userId == uid && f.type != 'return')
+        .map((f) => Invoice(
+              id: f.id,
+              userId: f.userId,
+              no: f.no,
+              date: f.date,
+              total: f.total,
+              points: f.points,
+              stored: f.stored,
+              type: f.type,
+              items: f.items
+                  .map((it) => InvoiceItem.fromJson(it.toMap()))
+                  .toList(),
+              legacyNo: f.legacyNo,
+              customerName: f.customerName,
+              cashier: f.cashier,
+              time: f.time,
+              source: f.source,
+            ))
+        .toList();
+    final fireRets = await returnsRepo.list();
+    final rets = <Map<String, dynamic>>[
+      ...fireRets
+          .where((f) => f.userId == uid)
+          .map((f) => <String, dynamic>{
+                'id': f.id,
+                'orderId': f.orderId,
+                'userId': f.userId,
+                'date': f.date,
+                'no': f.no,
+                'purchaseNo': f.purchaseNo,
+                'total': f.total,
+                'points': f.points,
+                'stored': f.stored,
+                'items': f.items.map((it) => it.toMap()).toList(),
+                'legacy': false,
+              }),
+      ...fireInvs
+          .where((f) => f.userId == uid && f.type == 'return')
+          .map((f) => <String, dynamic>{
+                'id': f.id,
+                'orderId': '',
+                'userId': f.userId,
+                'date': f.date,
+                'no': f.no,
+                'purchaseNo': f.legacyNo,
+                'total': -f.total.abs().toInt(),
+                'points': -f.points.abs(),
+                'stored': -f.stored.abs(),
+                'items': f.items.map((it) => it.toMap()).toList(),
+                'legacy': true,
+              }),
+    ];
     if (mounted) {
       setState(() {
         _invoices = invs;
         _returns = rets;
-        _history = hist;
+        _history = const [];
       });
     }
   }
