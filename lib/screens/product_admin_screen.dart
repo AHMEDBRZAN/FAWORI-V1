@@ -368,11 +368,20 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                               final url = await _uploadImage();
                               if (url.isNotEmpty) imgC.text = url;
                             } catch (e) {
+                              setSt(() => uploading = false);
                               if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                        content: Text('فشل الرفع: $e'),
-                                        backgroundColor: Colors.red));
+                                showDialog(
+                                    context: ctx,
+                                    builder: (d) => AlertDialog(
+                                          title: const Text('فشل الرفع'),
+                                          content: SelectableText('$e'),
+                                          actions: [
+                                            TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(d),
+                                                child: const Text('إغلاق')),
+                                          ],
+                                        ));
                               }
                             }
                             setSt(() => uploading = false);
