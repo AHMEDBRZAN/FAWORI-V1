@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -86,6 +87,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Map<String, String> _prodImg = <String, String>{};
   List<Product> _products = [];
   bool _loadingProducts = true;
+  StreamSubscription<List<FireProduct>>? _sub;
   final _qCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
 
@@ -123,6 +125,23 @@ class _ProductsScreenState extends State<ProductsScreen> {
     _refreshCount();
     _loadProdImages();
     _loadProducts();
+    _sub = productRepo.stream().listen((fire) {
+      if (!mounted) return;
+      setState(() {
+        _products = fire
+            .map((f) => Product(
+                  id: f.id,
+                  name: f.name,
+                  brand: f.brand,
+                  description: f.description,
+                  image: f.image,
+                  category: f.category,
+                  price: f.price,
+                ))
+            .toList();
+        _loadingProducts = false;
+      });
+    });
     if (widget.initialBrand != null && _brands.any((b) => b.key == widget.initialBrand)) {
       _focusBrand = widget.initialBrand;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,6 +154,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   void dispose() {
+    _sub?.cancel();
     _qCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
