@@ -310,6 +310,15 @@ class _LoginScreenState extends State<LoginScreen>
                                               focusNode: _phoneFocus,
                                               keyboardType:
                                                   TextInputType.phone,
+                                              selectionControls:
+                                                  materialTextSelectionControls,
+                                              onTap: () {
+                                                _phone.selection =
+                                                    TextSelection(
+                                                        baseOffset: 0,
+                                                        extentOffset:
+                                                            _phone.text.length);
+                                              },
                                               textInputAction:
                                                   TextInputAction.next,
                                               onSubmitted: (_) =>
@@ -358,6 +367,15 @@ class _LoginScreenState extends State<LoginScreen>
                                               controller: _pass,
                                               focusNode: _passFocus,
                                               obscureText: _obscure,
+                                              selectionControls:
+                                                  materialTextSelectionControls,
+                                              onTap: () {
+                                                _pass.selection =
+                                                    TextSelection(
+                                                        baseOffset: 0,
+                                                        extentOffset:
+                                                            _pass.text.length);
+                                              },
                                               textInputAction:
                                                   TextInputAction.done,
                                               onSubmitted: (_) => _login(),
