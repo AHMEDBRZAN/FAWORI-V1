@@ -545,6 +545,11 @@ class _EditDialog {
       controller: c,
       obscureText: obscure,
       keyboardType: kt,
+      selectionControls: materialTextSelectionControls,
+      onTap: () {
+        c.selection =
+            TextSelection(baseOffset: 0, extentOffset: c.text.length);
+      },
       style: TextStyle(color: dark ? Colors.white : AppColors.ink),
       decoration: InputDecoration(
         hintText: hint,
@@ -751,6 +756,11 @@ class _CreateDialog {
       controller: c,
       obscureText: obscure,
       keyboardType: kt,
+      selectionControls: materialTextSelectionControls,
+      onTap: () {
+        c.selection =
+            TextSelection(baseOffset: 0, extentOffset: c.text.length);
+      },
       style: TextStyle(color: dark ? Colors.white : AppColors.ink),
       decoration: InputDecoration(
         hintText: hint,
