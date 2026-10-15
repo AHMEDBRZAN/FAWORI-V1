@@ -546,6 +546,7 @@ class _EditDialog {
       obscureText: obscure,
       keyboardType: kt,
       selectionControls: materialTextSelectionControls,
+      magnifierConfiguration: TextMagnifierConfiguration.disabled,
       onTap: () {
         c.selection =
             TextSelection(baseOffset: 0, extentOffset: c.text.length);
@@ -757,6 +758,7 @@ class _CreateDialog {
       obscureText: obscure,
       keyboardType: kt,
       selectionControls: materialTextSelectionControls,
+      magnifierConfiguration: TextMagnifierConfiguration.disabled,
       onTap: () {
         c.selection =
             TextSelection(baseOffset: 0, extentOffset: c.text.length);
