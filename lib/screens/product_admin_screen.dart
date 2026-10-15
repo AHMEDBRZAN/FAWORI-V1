@@ -207,7 +207,7 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<String> _uploadImage() async {
+  Future<String> _uploadImage(void Function(bool) busy) async {
     final picker = html.FileUploadInputElement()..accept = 'image/*';
     picker.click();
     await picker.onChange.first;
@@ -228,15 +228,19 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     final ext = cropped.startsWith('data:image/webp') ? 'webp' : 'jpg';
     final path =
         'assets/data/img/p_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    final r = await http
-        .post(Uri.parse(_kProxy),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'path': path, 'content': base64Part}))
-        .timeout(const Duration(seconds: 40));
-    if (r.statusCode != 200 && r.statusCode != 201) {
-      throw Exception('upload ${r.statusCode}');
+    try {
+      final r = await http
+          .post(Uri.parse(_kProxy),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'path': path, 'content': base64Part}))
+          .timeout(const Duration(seconds: 40));
+      if (r.statusCode != 200 && r.statusCode != 201) {
+        throw Exception('upload ${r.statusCode}');
+      }
+      return '$_kImgBase$path';
+    } finally {
+      busy(false);
     }
-    return '$_kImgBase$path';
   }
 
   Future<void> _migrate(AppSettings s) async {
@@ -354,9 +358,9 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                     onPressed: uploading
                         ? null
                         : () async {
-                            setSt(() => uploading = true);
                             try {
-                              final url = await _uploadImage();
+                              final url = await _uploadImage(
+                                  (v) => setSt(() => uploading = v));
                               if (url.isNotEmpty) imgC.text = url;
                             } catch (e) {
                               if (ctx.mounted) {
@@ -366,7 +370,6 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                                         backgroundColor: Colors.red));
                               }
                             }
-                            setSt(() => uploading = false);
                           },
                     icon: uploading
                         ? const SizedBox(
