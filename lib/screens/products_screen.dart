@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/app_settings.dart';
 import '../core/guest_guard.dart';
 import '../core/orders_service.dart';
@@ -91,22 +92,74 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final _qCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
 
+  Future<void> _loadCachedProducts() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final cached = p.getStringList('products_cache');
+      if (cached == null || cached.isEmpty) return;
+      if (!mounted) return;
+      setState(() {
+        _products = cached
+            .map((line) {
+              try {
+                final m = Map<String, dynamic>.from(jsonDecode(line));
+                return Product(
+                  id: '${m['id'] ?? ''}',
+                  name: '${m['name'] ?? ''}',
+                  brand: '${m['brand'] ?? ''}',
+                  description: '${m['description'] ?? ''}',
+                  image: '${m['image'] ?? ''}',
+                  category: '${m['category'] ?? ''}',
+                  price: (m['price'] as num?)?.toInt() ?? 0,
+                );
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<Product>()
+            .toList();
+        _loadingProducts = false;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveProductsCache(List<Product> list) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(
+          'products_cache',
+          list
+              .map((e) => jsonEncode({
+                    'id': e.id,
+                    'name': e.name,
+                    'brand': e.brand,
+                    'description': e.description,
+                    'image': e.image,
+                    'category': e.category,
+                    'price': e.price,
+                  }))
+              .toList());
+    } catch (_) {}
+  }
+
   Future<void> _loadProducts() async {
     try {
       final fire = await productRepo.list().timeout(const Duration(seconds: 8));
       if (!mounted) return;
+      final list = fire
+          .map((f) => Product(
+                id: f.id,
+                name: f.name,
+                brand: f.brand,
+                description: f.description,
+                image: f.image,
+                category: f.category,
+                price: f.price,
+              ))
+          .toList();
+      _saveProductsCache(list);
       setState(() {
-        _products = fire
-            .map((f) => Product(
-                  id: f.id,
-                  name: f.name,
-                  brand: f.brand,
-                  description: f.description,
-                  image: f.image,
-                  category: f.category,
-                  price: f.price,
-                ))
-            .toList();
+        _products = list;
         _loadingProducts = false;
       });
     } catch (_) {
@@ -124,21 +177,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
     super.initState();
     _refreshCount();
     _loadProdImages();
+    _loadCachedProducts();
     _loadProducts();
     _sub = productRepo.stream().listen((fire) {
       if (!mounted) return;
+      final list = fire
+          .map((f) => Product(
+                id: f.id,
+                name: f.name,
+                brand: f.brand,
+                description: f.description,
+                image: f.image,
+                category: f.category,
+                price: f.price,
+              ))
+          .toList();
+      _saveProductsCache(list);
       setState(() {
-        _products = fire
-            .map((f) => Product(
-                  id: f.id,
-                  name: f.name,
-                  brand: f.brand,
-                  description: f.description,
-                  image: f.image,
-                  category: f.category,
-                  price: f.price,
-                ))
-            .toList();
+        _products = list;
         _loadingProducts = false;
       });
     });
@@ -511,6 +567,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     url,
                                     fit: BoxFit.contain,
                                     width: double.infinity,
+                                    cacheWidth: 320,
                                     gaplessPlayback: true,
                                     loadingBuilder: (c, child, prog) => prog == null
                                         ? child
