@@ -88,6 +88,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Map<String, String> _prodImg = <String, String>{};
   List<Product> _products = [];
   bool _loadingProducts = true;
+  int _priceFilter = 0;
   StreamSubscription<List<FireProduct>>? _sub;
   final _qCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
@@ -285,13 +286,84 @@ class _ProductsScreenState extends State<ProductsScreen> {
     await _refreshCount();
   }
 
+  Widget _chip(String label, String? key, Color c) {
+    final active = _focusBrand == key;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8),
+      child: InkWell(
+        onTap: () => setState(() => _focusBrand = key),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? c : c.withAlpha(20),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: c.withAlpha(active ? 200 : 80)),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: active ? Colors.white : c,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _priceChip(String label, int v) {
+    final active = _priceFilter == v;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8),
+      child: InkWell(
+        onTap: () => setState(() => _priceFilter = v),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? AppColors.orange : AppColors.orange.withAlpha(18),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: AppColors.orange.withAlpha(active ? 200 : 70)),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: active ? Colors.white : AppColors.orange,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11)),
+        ),
+      ),
+    );
+  }
+
   _BrandCfg _brandCfg(String key) => _brands.firstWhere((b) => b.key == key);
 
+  bool _priceOk(Product p) {
+    switch (_priceFilter) {
+      case 1:
+        return p.price <= 10000;
+      case 2:
+        return p.price > 10000 && p.price <= 50000;
+      case 3:
+        return p.price > 50000;
+      default:
+        return true;
+    }
+  }
+
   List<Product> _filterBrand(String brandKey) {
-    final base = _products.where((p) => p.brand == brandKey);
+    final base = _products.where((p) => p.brand == brandKey && _priceOk(p));
     if (_q.trim().isEmpty) return base.toList();
     final q = _q.trim().toLowerCase();
     return base.where((p) => p.name.toLowerCase().contains(q) || p.description.toLowerCase().contains(q)).toList();
+  }
+
+  List<Product> _suggestions() {
+    final q = _q.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    return _products
+        .where((p) => p.name.toLowerCase().contains(q) && _priceOk(p))
+        .take(8)
+        .toList();
   }
 
   @override
@@ -394,6 +466,80 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _chip(s.isArabic ? 'الكل' : 'All', null, AppColors.teal),
+                for (final b in _brands)
+                  _chip(s.isArabic ? b.ar : b.en, b.key, b.color),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _priceChip(s.isArabic ? 'كل الأسعار' : 'All prices', 0),
+                _priceChip(s.isArabic ? '≤ 10 آلاف' : '≤ 10K', 1),
+                _priceChip(s.isArabic ? '10 - 50 ألف' : '10-50K', 2),
+                _priceChip(s.isArabic ? '≥ 50 ألف' : '≥ 50K', 3),
+              ],
+            ),
+          ),
+          if (_suggestions().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xFF1E1E28) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.teal.withAlpha(80)),
+              ),
+              child: Column(
+                children: [
+                  for (final p in _suggestions())
+                    InkWell(
+                      onTap: () => _openDetail(p),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.search_rounded,
+                                size: 16, color: AppColors.teal),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(p.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: dark
+                                          ? Colors.white
+                                          : AppColors.ink)),
+                            ),
+                            Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text('${p.price}',
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.orange,
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           if (_focusBrand != null)
             Padding(
