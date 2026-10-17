@@ -838,6 +838,150 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ),
                     const SizedBox(height: 30),
                   ],
+
+                  // ═══════════════════════════════════════════════
+                  // 🎯 منتجات مشابهة
+                  // ═══════════════════════════════════════════════
+                  if (_similar.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Color(0xFF9B59B6),
+                                Color(0xFF8E44AD)
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(s.isArabic ? 'منتجات مشابهة' : 'Similar products',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: dark ? Colors.white : AppColors.ink)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 180,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _similar.length,
+                        itemBuilder: (ctx, i) {
+                          final sp = _similar[i];
+                          final spImg = sp.image.isNotEmpty ? sp.image : '';
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProductDetailScreen(
+                                    product: Product(
+                                      id: sp.id,
+                                      name: sp.name,
+                                      brand: sp.brand,
+                                      description: sp.description,
+                                      image: sp.image,
+                                      category: sp.category,
+                                      price: sp.price,
+                                    ),
+                                    canBuy: widget.canBuy,
+                                    onAdd: widget.onAdd,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 140,
+                              margin: const EdgeInsetsDirectional.only(end: 12),
+                              decoration: BoxDecoration(
+                                color: dark
+                                    ? const Color(0xFF1E1E28)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: AppColors.orange.withAlpha(50)),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color:
+                                          Colors.black.withAlpha(dark ? 40 : 10),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3)),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: ClipRRect(
+                                      borderRadius: const BorderRadius.vertical(
+                                          top: Radius.circular(16)),
+                                      child: spImg.isNotEmpty
+                                          ? Image.network(spImg,
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              errorBuilder: (c, o, st) =>
+                                                  Center(
+                                                      child: Icon(
+                                                          Icons
+                                                              .format_paint_rounded,
+                                                          color: AppColors.orange,
+                                                          size: 32)))
+                                          : Center(
+                                              child: Icon(
+                                                  Icons.format_paint_rounded,
+                                                  color: AppColors.orange,
+                                                  size: 32)),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(sp.name,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  height: 1.2,
+                                                  color: dark
+                                                      ? Colors.white
+                                                      : AppColors.ink)),
+                                          Directionality(
+                                            textDirection: TextDirection.ltr,
+                                            child: Text(fmtThousands(sp.price),
+                                                style: const TextStyle(
+                                                    color: AppColors.orange,
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 13)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
