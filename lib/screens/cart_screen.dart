@@ -574,55 +574,14 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                         child: Row(
                           children: [
-                            // صورة مصغرة (اختيارية)
-                            if (_items[i].image != null && _items[i].image!.isNotEmpty) ...[
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.network(
-                                  _items[i].image!,
-                                  width: 50,
-                                  height: 50,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (c, o, st) => Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.orange.withAlpha(20),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(Icons.format_paint_rounded,
-                                        color: AppColors.orange, size: 24),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                            ],
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_items[i].name,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14,
-                                          color: dark
-                                              ? Colors.white
-                                              : AppColors.ink)),
-                                  if (_items[i].price != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Directionality(
-                                        textDirection: TextDirection.ltr,
-                                        child: Text(
-                                            '${fmtThousands(_items[i].price!)} × ${_items[i].qty}',
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                                fontWeight: FontWeight.w700)),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              child: Text(_items[i].name,
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: dark
+                                          ? Colors.white
+                                          : AppColors.ink)),
                             ),
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline,
@@ -680,28 +639,14 @@ class _CartScreenState extends State<CartScreen> {
                                           ? Colors.white
                                           : AppColors.ink)),
                               const Spacer(),
-                              if (_items.any((e) => e.price != null))
-                                Directionality(
-                                  textDirection: TextDirection.ltr,
-                                  child: Text(
-                                      fmtThousands(_items.fold<int>(
-                                          0,
-                                          (sum, e) =>
-                                              sum + (e.price ?? 0) * e.qty)),
-                                      style: const TextStyle(
-                                          color: AppColors.orange,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 15)),
-                                )
-                              else
-                                Text(
-                                    s.isArabic
-                                        ? 'يُحدد من الإدارة'
-                                        : 'Set by admin',
-                                    style: const TextStyle(
-                                        color: AppColors.orange,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15)),
+                              Text(
+                                  s.isArabic
+                                      ? 'يُحدد من الإدارة'
+                                      : 'Set by admin',
+                                  style: const TextStyle(
+                                      color: AppColors.orange,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15)),
                             ],
                           ),
                           const SizedBox(height: 8),
