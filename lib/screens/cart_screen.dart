@@ -517,6 +517,38 @@ class _CartScreenState extends State<CartScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(s.isArabic ? 'السلة' : 'Cart'),
+        actions: [
+          if (_items.isNotEmpty)
+            IconButton(
+              tooltip: s.isArabic ? 'إفراغ السلة' : 'Clear cart',
+              icon: const Icon(Icons.delete_sweep_rounded, color: Colors.red),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Text(s.isArabic ? 'إفراغ السلة' : 'Clear cart'),
+                    content: Text(s.isArabic
+                        ? 'هل تريد حذف كل العناصر من السلة؟'
+                        : 'Remove all items from cart?'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(s.isArabic ? 'إلغاء' : 'Cancel')),
+                      ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: Text(s.isArabic ? 'إفراغ' : 'Clear')),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  setState(() => _items = []);
+                  await _save();
+                }
+              },
+            ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -528,7 +560,7 @@ class _CartScreenState extends State<CartScreen> {
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    for (int i = 0; i < _items.length; i++)
+                    for (int i = 0; i < _items.length; i++) ...[
                       Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
@@ -542,14 +574,55 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                         child: Row(
                           children: [
+                            // صورة مصغرة (اختيارية)
+                            if (_items[i].image != null && _items[i].image!.isNotEmpty) ...[
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  _items[i].image!,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, o, st) => Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.orange.withAlpha(20),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.format_paint_rounded,
+                                        color: AppColors.orange, size: 24),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
                             Expanded(
-                              child: Text(_items[i].name,
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: dark
-                                          ? Colors.white
-                                          : AppColors.ink)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_items[i].name,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14,
+                                          color: dark
+                                              ? Colors.white
+                                              : AppColors.ink)),
+                                  if (_items[i].price != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Directionality(
+                                        textDirection: TextDirection.ltr,
+                                        child: Text(
+                                            '${fmtThousands(_items[i].price!)} × ${_items[i].qty}',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                                fontWeight: FontWeight.w700)),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline,
@@ -576,6 +649,7 @@ class _CartScreenState extends State<CartScreen> {
                           ],
                         ),
                       ),
+                    ],
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -606,14 +680,28 @@ class _CartScreenState extends State<CartScreen> {
                                           ? Colors.white
                                           : AppColors.ink)),
                               const Spacer(),
-                              Text(
-                                  s.isArabic
-                                      ? 'يُحدد من الإدارة'
-                                      : 'Set by admin',
-                                  style: const TextStyle(
-                                      color: AppColors.orange,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 15)),
+                              if (_items.any((e) => e.price != null))
+                                Directionality(
+                                  textDirection: TextDirection.ltr,
+                                  child: Text(
+                                      fmtThousands(_items.fold<int>(
+                                          0,
+                                          (sum, e) =>
+                                              sum + (e.price ?? 0) * e.qty)),
+                                      style: const TextStyle(
+                                          color: AppColors.orange,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 15)),
+                                )
+                              else
+                                Text(
+                                    s.isArabic
+                                        ? 'يُحدد من الإدارة'
+                                        : 'Set by admin',
+                                    style: const TextStyle(
+                                        color: AppColors.orange,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15)),
                             ],
                           ),
                           const SizedBox(height: 8),
