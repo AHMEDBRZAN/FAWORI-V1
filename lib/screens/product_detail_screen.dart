@@ -312,7 +312,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     await widget.onAdd(_qty);
     if (!mounted) return;
     setState(() => _busy = false);
-    await Future.delayed(const Duration(seconds: 2));
     if (mounted) Navigator.pop(context);
   }
 
