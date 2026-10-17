@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import '../core/orders_service.dart';
+import '../core/repositories/product_repo.dart';
 import '../core/store_service.dart';
 import '../core/theme.dart';
 import '../data/sample_data.dart';
@@ -31,6 +32,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _busy = false;
   String _desc = '';
   String _imgPath = '';
+  List<FireProduct> _similar = [];
 
   static const String _rawBase =
       'https://raw.githubusercontent.com/AHMEDBRZAN/FAWORI-V1/main';
@@ -40,6 +42,36 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _loadExtra();
+    _loadSimilar();
+  }
+
+  Future<void> _loadSimilar() async {
+    try {
+      final all = await productRepo.list().timeout(const Duration(seconds: 5));
+      final p = widget.product;
+      final sim = all
+          .where((f) =>
+              f.id != p.id &&
+              (f.brand == p.brand ||
+                  (p.category.isNotEmpty && f.category == p.category)))
+          .take(6)
+          .toList();
+      if (mounted) setState(() => _similar = sim);
+    } catch (_) {}
+  }
+
+  void _shareProduct() {
+    final p = widget.product;
+    final url = 'https://fawori-company.web.app/#/product/${p.id}';
+    final text =
+        '${p.name} - ${fmtThousands(p.price)} د.ع\n$p.url';
+    // نسخ الرابط للحافظة
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تم نسخ رابط المنتج'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<dynamic> _fetchJson(String path) async {
@@ -430,6 +462,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ),
             actions: [
+              Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: dark
+                      ? Colors.black.withAlpha(120)
+                      : Colors.white.withAlpha(220),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withAlpha(40), blurRadius: 8),
+                  ],
+                ),
+                child: IconButton(
+                  tooltip: s.isArabic ? 'مشاركة' : 'Share',
+                  icon: Icon(Icons.share_rounded,
+                      color: dark ? Colors.white : AppColors.ink, size: 20),
+                  onPressed: _shareProduct,
+                ),
+              ),
               if (isController)
                 Container(
                   margin: const EdgeInsets.all(8),
