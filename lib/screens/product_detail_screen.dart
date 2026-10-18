@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import '../core/orders_service.dart';
+import '../core/repositories/favorites_repo.dart';
 import '../core/repositories/product_repo.dart';
 import '../core/store_service.dart';
 import '../core/theme.dart';
@@ -461,6 +462,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ),
             actions: [
+              StreamBuilder<List<String>>(
+                stream: favoritesRepo.stream(s.user?.id ?? ''),
+                builder: (ctx, snap) {
+                  final ids = snap.data ?? const <String>[];
+                  final fav = ids.contains(p.id);
+                  return Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: dark
+                          ? Colors.black.withAlpha(120)
+                          : Colors.white.withAlpha(220),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withAlpha(40), blurRadius: 8),
+                      ],
+                    ),
+                    child: IconButton(
+                      tooltip: s.isArabic ? 'المفضلة' : 'Favorites',
+                      icon: Icon(
+                          fav
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: Colors.red,
+                          size: 20),
+                      onPressed: () =>
+                          favoritesRepo.toggle(s.user?.id ?? '', p.id),
+                    ),
+                  );
+                },
+              ),
               Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
