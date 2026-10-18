@@ -10,6 +10,7 @@ import '../core/guest_guard.dart';
 import '../core/orders_service.dart';
 import '../core/theme.dart';
 import '../data/sample_data.dart';
+import '../core/repositories/favorites_repo.dart';
 import '../core/repositories/product_repo.dart';
 import '../widgets/pressable.dart';
 import 'cart_screen.dart';
@@ -89,7 +90,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<Product> _products = [];
   bool _loadingProducts = true;
   int _priceFilter = 0;
+  Set<String> _favIds = {};
   StreamSubscription<List<FireProduct>>? _sub;
+  StreamSubscription<List<String>>? _subF;
   final _qCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
 
@@ -199,6 +202,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
         _loadingProducts = false;
       });
     });
+    _subF = favoritesRepo
+        .stream(context.read<AppSettings>().user?.id ?? '')
+        .listen((ids) {
+      if (!mounted) return;
+      setState(() => _favIds = ids.toSet());
+    });
     if (widget.initialBrand != null && _brands.any((b) => b.key == widget.initialBrand)) {
       _focusBrand = widget.initialBrand;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -212,6 +221,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _subF?.cancel();
     _qCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -742,6 +752,39 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                       ),
                     ),
+                    if (!s.isGuest)
+                      PositionedDirectional(
+                        top: 10,
+                        end: 10,
+                        child: InkWell(
+                          onTap: () => favoritesRepo.toggle(
+                              context.read<AppSettings>().user?.id ?? '',
+                              p.id),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: dark
+                                  ? const Color(0xFF1E1E28)
+                                  : Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                    color:
+                                        Colors.black.withAlpha(dark ? 60 : 20),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2)),
+                              ],
+                            ),
+                            child: Icon(
+                                _favIds.contains(p.id)
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                color: Colors.red,
+                                size: 18),
+                          ),
+                        ),
+                      ),
                     if (!s.isGuest)
                       PositionedDirectional(
                         bottom: 10,
