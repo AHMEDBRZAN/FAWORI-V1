@@ -554,58 +554,245 @@ class _CartScreenState extends State<CartScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _items.isEmpty
               ? Center(
-                  child: Text(
-                      s.isArabic ? 'السلة فارغة' : 'Cart is empty',
-                      style: TextStyle(color: Colors.grey.shade500)))
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shopping_cart_outlined,
+                          size: 90, color: AppColors.orange.withAlpha(90)),
+                      const SizedBox(height: 14),
+                      Text(
+                          s.isArabic
+                              ? 'سلتك فارغة حالياً'
+                              : 'Your cart is empty',
+                          style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16)),
+                      const SizedBox(height: 6),
+                      Text(
+                          s.isArabic
+                              ? 'تصفح المنتجات وأضف ما يعجبك'
+                              : 'Browse products and add what you like',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 12)),
+                    ],
+                  ),
+                )
               : ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   children: [
-                    for (int i = 0; i < _items.length; i++) ...[
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: dark
-                              ? const Color(0xFF1E1E28)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: AppColors.orange.withAlpha(60)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(_items[i].name,
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: dark
-                                          ? Colors.white
-                                          : AppColors.ink)),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline,
-                                  color: AppColors.orange),
-                              onPressed: _items[i].qty > 1
-                                  ? () => _chg(i, -1)
-                                  : null,
-                            ),
-                            Text('${_items[i].qty}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 15)),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline,
-                                  color: AppColors.orange),
-                              onPressed: () => _chg(i, 1),
-                            ),
-                            const SizedBox(width: 6),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                              onPressed: () => _remove(i),
-                            ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: <Color>[
+                            Color(0xFFFF8C00),
+                            Color(0xFFF26B0F)
                           ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                              color: AppColors.orange.withAlpha(90),
+                              blurRadius: 14,
+                              offset: const Offset(0, 5)),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(50),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.shopping_cart_rounded,
+                                color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                                s.isArabic
+                                    ? '${_items.length} مادة في السلة'
+                                    : '${_items.length} items in cart',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14)),
+                          ),
+                          Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: Text(
+                                '${_items.fold<int>(0, (p, c) => p + c.qty)}',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18)),
+                          ),
+                          Text(s.isArabic ? ' قطعة' : ' pcs',
+                              style: TextStyle(
+                                  color: Colors.white.withAlpha(220),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                          s.isArabic
+                              ? 'اسحب العنصر جانباً لحذفه سريعاً'
+                              : 'Swipe item aside to delete',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 11)),
+                    ),
+                    for (int i = 0; i < _items.length; i++) ...[
+                      Dismissible(
+                        key: ValueKey('cart_${i}_${_items[i].name}'),
+                        direction: DismissDirection.endToStart,
+                        onDismissed: (_) => _remove(i),
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsetsDirectional.only(start: 20),
+                          child: const Icon(Icons.delete_rounded,
+                              color: Colors.white),
+                        ),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: dark
+                                  ? <Color>[
+                                      const Color(0xFF1E1E28),
+                                      const Color(0xFF26262E)
+                                    ]
+                                  : <Color>[
+                                      Colors.white,
+                                      const Color(0xFFFFF8F1)
+                                    ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                                color: AppColors.orange.withAlpha(70)),
+                            boxShadow: [
+                              BoxShadow(
+                                  color:
+                                      Colors.black.withAlpha(dark ? 40 : 12),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                      colors: <Color>[
+                                        Color(0xFFFFA500),
+                                        Color(0xFFF26B0F)
+                                      ]),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: Center(
+                                  child: Text('${i + 1}',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 14)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(_items[i].name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13.5,
+                                        height: 1.3,
+                                        color: dark
+                                            ? Colors.white
+                                            : AppColors.ink)),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.orange.withAlpha(18),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    InkWell(
+                                      onTap: () => _chg(i, 1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(4),
+                                        child: Icon(Icons.add_rounded,
+                                            color: AppColors.orange,
+                                            size: 18),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 26,
+                                      child: Text('${_items[i].qty}',
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                              color: AppColors.orange)),
+                                    ),
+                                    InkWell(
+                                      onTap: _items[i].qty > 1
+                                          ? () => _chg(i, -1)
+                                          : null,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(4),
+                                        child: Icon(Icons.remove_rounded,
+                                            color: _items[i].qty > 1
+                                                ? AppColors.orange
+                                                : Colors.grey,
+                                            size: 18),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              InkWell(
+                                onTap: () => _remove(i),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withAlpha(18),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      color: Colors.red,
+                                      size: 18),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
