@@ -61,6 +61,7 @@ class AppColors {
 class AppTheme {
   static ThemeData dark() => ThemeData(
         brightness: Brightness.dark,
+        fontFamily: 'Cairo',
         scaffoldBackgroundColor: AppColors.darkBg,
         colorScheme: const ColorScheme.dark(
           primary: AppColors.orange,
@@ -73,6 +74,7 @@ class AppTheme {
 
   static ThemeData light() => ThemeData(
         brightness: Brightness.light,
+        fontFamily: 'Cairo',
         scaffoldBackgroundColor: AppColors.lightBg,
         colorScheme: const ColorScheme.light(
           primary: AppColors.orange,
