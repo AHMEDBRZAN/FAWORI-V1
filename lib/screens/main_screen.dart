@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import 'admin_users.dart';
 import 'home_screen.dart';
 import 'media_admin_screen.dart';
+import 'favorites_screen.dart';
 import 'product_admin_screen.dart';
 import 'points_fire_screen.dart';
 import 'products_screen.dart';
@@ -100,6 +101,13 @@ class _MainScreenState extends State<MainScreen> {
       screens.add(const ProfileScreen());
       icons.add(Icons.person_rounded);
       labels.add(s.isArabic ? 'ملف شخصي' : 'Profile');
+    }
+
+    // التبويب: المفضلة (للمسجلين)
+    if (!s.isGuest) {
+      screens.add(const FavoritesScreen());
+      icons.add(Icons.favorite_rounded);
+      labels.add(s.isArabic ? 'المفضلة' : 'Favorites');
     }
 
     // التبويب: إدارة المنتجات (للمدير والمتحكم)
