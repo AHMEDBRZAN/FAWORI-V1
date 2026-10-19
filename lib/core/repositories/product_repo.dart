@@ -8,6 +8,7 @@ class FireProduct {
   final String description;
   final String image;
   final String category;
+  final String type;
   final int price;
 
   const FireProduct({
@@ -17,6 +18,7 @@ class FireProduct {
     this.description = '',
     this.image = '',
     this.category = '',
+    this.type = '',
     this.price = 0,
   });
 
@@ -29,6 +31,7 @@ class FireProduct {
       description: '${m['description'] ?? ''}',
       image: '${m['image'] ?? ''}',
       category: '${m['category'] ?? ''}',
+      type: '${m['type'] ?? ''}',
       price: (m['price'] as num?)?.toInt() ?? 0,
     );
   }
@@ -39,6 +42,7 @@ class FireProduct {
         'description': description,
         'image': image,
         'category': category,
+        'type': type,
         'price': price,
       };
 }
