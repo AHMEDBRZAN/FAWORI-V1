@@ -114,6 +114,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   description: '${m['description'] ?? ''}',
                   image: '${m['image'] ?? ''}',
                   category: '${m['category'] ?? ''}',
+                  type: '${m['type'] ?? ''}',
                   price: (m['price'] as num?)?.toInt() ?? 0,
                 );
               } catch (_) {
@@ -140,6 +141,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     'description': e.description,
                     'image': e.image,
                     'category': e.category,
+                    'type': e.type,
                     'price': e.price,
                   }))
               .toList());
@@ -158,6 +160,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 description: f.description,
                 image: f.image,
                 category: f.category,
+                type: f.type,
                 price: f.price,
               ))
           .toList();
@@ -193,6 +196,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 description: f.description,
                 image: f.image,
                 category: f.category,
+                type: f.type,
                 price: f.price,
               ))
           .toList();
@@ -352,6 +356,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   /// ✅ استخراج نوع المادة من اسمها تلقائياً
   String _typeOf(Product p) {
+    final t = p.type.trim();
+    if (t.isNotEmpty) return t;
     final n = p.name.toLowerCase();
     if (n.contains('خارجي')) return 'خارجي';
     if (n.contains('داخلي')) return 'داخلي';
