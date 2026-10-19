@@ -735,11 +735,9 @@ static const String _kHistTombKey = 'hist_tombstones';
             points: o.points.toInt(),
             stored: o.stored.toInt(),
             type: 'sale',
+            source: 'online',
             items: o.items
-                .map((e) => InvoiceItem(
-                    name: e.name,
-                    price: 0,
-                    qty: e.qty))
+                .map((e) => InvoiceItem(name: e.name, price: 0, qty: e.qty))
                 .toList(),
           ));
         }
@@ -860,6 +858,26 @@ static const String _kHistTombKey = 'hist_tombstones';
       {List<dynamic>? invoices}) async {
     final invs = invoices ?? await _fetchJson('assets/data/invoices.json');
     if (invs is! List) return;
+    // ✅ دمج الطلبات المقبولة غير الملتحقة كفواتير شراء أونلاين
+    try {
+      final ids = invs.whereType<Map>().map((e) => '${e['id']}').toSet();
+      final ords = await loadOrders();
+      for (final o in ords) {
+        if (o.userId != userId) continue;
+        if (o.status != 'accepted' && o.status != 'completed') continue;
+        if (ids.contains(o.id)) continue;
+        invs.add({
+          'id': o.id,
+          'userId': o.userId,
+          'date': o.date,
+          'type': 'sale',
+          'no': o.invoiceNo,
+          'total': o.total,
+          'points': o.points.toInt(),
+          'stored': o.stored.toInt(),
+        });
+      }
+    } catch (_) {}
     int sales = 0;
     int rets = 0;
     for (final i in invs) {
