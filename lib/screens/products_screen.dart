@@ -89,7 +89,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Map<String, String> _prodImg = <String, String>{};
   List<Product> _products = [];
   bool _loadingProducts = true;
-  int _priceFilter = 0;
+  String? _catFilter;
   Set<String> _favIds = {};
   StreamSubscription<List<FireProduct>>? _sub;
   StreamSubscription<List<String>>? _subF;
@@ -301,7 +301,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8),
       child: InkWell(
-        onTap: () => setState(() => _focusBrand = key),
+        onTap: () => setState(() {
+              _focusBrand = key;
+              _catFilter = null;
+            }),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -320,8 +323,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  Widget _priceChip(String label, int v) {
-    final active = _priceFilter == v;
+  Widget _catChip(String label, String? v) {
+    final active = _catFilter == v;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8),
       child: InkWell(
@@ -347,21 +350,25 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   _BrandCfg _brandCfg(String key) => _brands.firstWhere((b) => b.key == key);
 
-  bool _priceOk(Product p) {
-    switch (_priceFilter) {
-      case 1:
-        return p.price <= 10000;
-      case 2:
-        return p.price > 10000 && p.price <= 50000;
-      case 3:
-        return p.price > 50000;
-      default:
-        return true;
+  bool _catOk(Product p) {
+    if (_catFilter == null) return true;
+    return p.category.trim() == _catFilter;
+  }
+
+  List<String> _categories() {
+    final pool = _focusBrand == null
+        ? _products
+        : _products.where((p) => p.brand == _focusBrand).toList();
+    final set = <String>{};
+    for (final p in pool) {
+      final c = p.category.trim();
+      if (c.isNotEmpty) set.add(c);
     }
+    return set.toList()..sort();
   }
 
   List<Product> _filterBrand(String brandKey) {
-    final base = _products.where((p) => p.brand == brandKey && _priceOk(p));
+    final base = _products.where((p) => p.brand == brandKey && _catOk(p));
     if (_q.trim().isEmpty) return base.toList();
     final q = _q.trim().toLowerCase();
     return base.where((p) => p.name.toLowerCase().contains(q) || p.description.toLowerCase().contains(q)).toList();
@@ -494,10 +501,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                _priceChip(s.isArabic ? 'كل الأسعار' : 'All prices', 0),
-                _priceChip(s.isArabic ? '≤ 10 آلاف' : '≤ 10K', 1),
-                _priceChip(s.isArabic ? '10 - 50 ألف' : '10-50K', 2),
-                _priceChip(s.isArabic ? '≥ 50 ألف' : '≥ 50K', 3),
+                _catChip(s.isArabic ? 'كل الأنواع' : 'All types', null),
+                for (final c in _categories()) _catChip(c, c),
               ],
             ),
           ),
