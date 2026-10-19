@@ -719,6 +719,29 @@ static const String _kHistTombKey = 'hist_tombstones';
 
   static Future<List<Invoice>> loadInvoicesFiltered() async {
     final list = await StoreService.loadInvoices();
+    // ✅ دمج الفواتير المقبولة التي لم تصل للسيرفر بعد
+    try {
+      final orders = await loadOrders();
+      final ids = list.map((e) => e.id).toSet();
+      for (final o in orders) {
+        if ((o.status == 'accepted' || o.status == 'completed') &&
+            !ids.contains(o.id)) {
+          list.add(Invoice(
+            id: o.id,
+            userId: o.userId,
+            no: o.invoiceNo,
+            date: o.date,
+            total: o.total,
+            points: o.points.toInt(),
+            stored: o.stored.toInt(),
+            type: 'sale',
+            items: o.items
+                .map((e) => {'name': e.name, 'price': 0, 'qty': e.qty})
+                .toList(),
+          ));
+        }
+      }
+    } catch (_) {}
     final tombs = await _loadSet(_kInvTombKey);
     if (tombs.isNotEmpty) {
       final ids = list.map((e) => e.id).toSet();
@@ -1050,6 +1073,37 @@ static const String _kHistTombKey = 'hist_tombstones';
     });
     await _putJson('assets/data/returns.json', rets);
     await recalcUserTotals(o.userId);
+  }
+
+  /// ✅ عدد إشعارات العميل غير المقروءة (حالة تغيّرت منذ آخر مشاهدة)
+  static Future<int> unseenCustomerNotifs(String uid) async {
+    if (uid.isEmpty) return 0;
+    final p = await SharedPreferences.getInstance();
+    Map<String, dynamic> seen = {};
+    try {
+      seen = Map<String, dynamic>.from(
+          jsonDecode(p.getString('home_seen_status') ?? '{}') as Map);
+    } catch (_) {}
+    final orders = await loadOrders();
+    int n = 0;
+    for (final o in orders) {
+      if (o.userId != uid) continue;
+      if (o.status != 'accepted' && o.status != 'rejected') continue;
+      if ('${seen[o.id] ?? ''}' != o.status) n++;
+    }
+    return n;
+  }
+
+  /// ✅ تعليم كل إشعارات العميل كمقروءة
+  static Future<void> markCustomerNotifsSeen(String uid) async {
+    if (uid.isEmpty) return;
+    final orders = await loadOrders();
+    final m = <String, dynamic>{};
+    for (final o in orders) {
+      if (o.userId == uid) m[o.id] = o.status;
+    }
+    final p = await SharedPreferences.getInstance();
+    await p.setString('home_seen_status', jsonEncode(m));
   }
 
   static Future<bool> convertStoredToPoints(String userId) async {
