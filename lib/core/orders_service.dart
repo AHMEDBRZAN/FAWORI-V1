@@ -736,7 +736,10 @@ static const String _kHistTombKey = 'hist_tombstones';
             stored: o.stored.toInt(),
             type: 'sale',
             items: o.items
-                .map((e) => {'name': e.name, 'price': 0, 'qty': e.qty})
+                .map((e) => InvoiceItem(
+                    name: e.name,
+                    price: 0,
+                    qty: e.qty))
                 .toList(),
           ));
         }
