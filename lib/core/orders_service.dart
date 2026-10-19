@@ -402,27 +402,6 @@ class OrdersService {
     }
   }
 
-  static Future<List<Order>> loadOrders() async {
-    final snap = await _col.order('date', descending: true).get();
-    return snap.docs.map((d) {
-      final m = d.data() as Map<String, dynamic>;
-      return Order(
-        id: d.id,
-        userId: '${m['userId'] ?? ''}',
-        userName: '${m['userName'] ?? ''}',
-        userRole: '${m['userRole'] ?? ''}',
-        date: '${m['date'] ?? ''}',
-        invoiceNo: '${m['invoiceNo'] ?? ''}',
-        status: '${m['status'] ?? 'pending'}',
-        items: (m['items'] as List?)
-                ?.map((e) => OrderItem(
-                    name: '${e['name'] ?? ''}', qty: (e['qty'] as num?)?.toInt() ?? 0))
-                .toList() ??
-            [],
-      );
-    }).toList();
-  }
-
   static Future<void> submitOrder(Order o) async {
     // ✅ كتابة مباشرة إلى Firestore
     try {
