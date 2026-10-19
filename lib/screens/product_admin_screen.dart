@@ -352,6 +352,19 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
     final nameC = TextEditingController(text: p?.name ?? '');
     final brandC = TextEditingController(text: p?.brand ?? '');
     final catC = TextEditingController(text: p?.category ?? '');
+    const List<String> kTypes = [
+      'أساس',
+      'برايمر',
+      'خارجي',
+      'داخلي',
+      'معجون',
+      'فلكس',
+      'عوازل',
+      'وجه نهائي',
+      'سيلكون',
+      'أخرى'
+    ];
+    String typeVal = kTypes.contains(p?.type ?? '') ? (p?.type ?? '') : '';
     final priceC = TextEditingController(text: p == null ? '' : '${p.price}');
     final descC = TextEditingController(text: p?.description ?? '');
     final imgC = TextEditingController(text: p?.image ?? '');
@@ -383,6 +396,34 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
                 const SizedBox(height: 10),
                 _fld(catC, s.isArabic ? 'الفئة' : 'Category',
                     Icons.category_rounded, const Color(0xFF9B59B6), dark),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                    value: typeVal,
+                    isExpanded: true,
+                    dropdownColor:
+                        dark ? const Color(0xFF26262E) : Colors.white,
+                    items: [
+                      DropdownMenuItem(
+                          value: '',
+                          child: Text(s.isArabic
+                              ? 'تلقائي (استخراج من الاسم)'
+                              : 'Auto (from name)')),
+                      for (final t in kTypes)
+                        DropdownMenuItem(value: t, child: Text(t)),
+                    ],
+                    onChanged: (v) => setSt(() => typeVal = v ?? ''),
+                    decoration: InputDecoration(
+                      hintText: s.isArabic ? 'النوع' : 'Type',
+                      prefixIcon: const Icon(Icons.local_offer_rounded,
+                          color: Color(0xFF9B59B6), size: 20),
+                      filled: true,
+                      fillColor: dark
+                          ? const Color(0xFF26262E)
+                          : const Color(0xFFFFFDF9),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none),
+                    )),
                 const SizedBox(height: 10),
                 _fld(priceC, s.isArabic ? 'السعر (دينار)' : 'Price',
                     Icons.payments_rounded, AppColors.orange, dark,
@@ -550,6 +591,7 @@ class _ProductAdminScreenState extends State<ProductAdminScreen> {
       description: descC.text.trim(),
       image: imgC.text.trim(),
       category: catC.text.trim(),
+      type: typeVal,
       price: int.tryParse(priceC.text.replaceAll(',', '')) ?? 0,
     ));
     _load();
