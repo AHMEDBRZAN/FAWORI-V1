@@ -328,7 +328,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 8),
       child: InkWell(
-        onTap: () => setState(() => _priceFilter = v),
+        onTap: () => setState(() => _catFilter = v),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -378,7 +378,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final q = _q.trim().toLowerCase();
     if (q.isEmpty) return const [];
     return _products
-        .where((p) => p.name.toLowerCase().contains(q) && _priceOk(p))
+        .where((p) => p.name.toLowerCase().contains(q) && _catOk(p))
         .take(8)
         .toList();
   }
