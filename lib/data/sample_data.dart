@@ -7,6 +7,7 @@ class Product {
   final String description;
   final String image;
   final String category;
+  final String type;
   final int price;
 
   const Product({
@@ -16,6 +17,7 @@ class Product {
     this.description = '',
     this.image = '',
     this.category = '',
+    this.type = '',
     this.price = 0,
   });
 
