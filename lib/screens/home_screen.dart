@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import '../core/guest_guard.dart';
+import '../core/orders_service.dart';
 import '../core/store_service.dart';
 import '../core/theme.dart';
 import '../widgets/fawori_logo.dart';
@@ -271,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _idx = 0;
   List<String> _homeImages = [];
   Map<String, String> _brandMap = {};
+  int _customerNotifs = 0;
 
   static const List<String> _defaultBanners = <String>[
     'assets/images/BB-1.webp',
@@ -288,6 +290,16 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadImages();
     _startAuto();
+    _loadCustomerNotifs();
+  }
+
+  Future<void> _loadCustomerNotifs() async {
+    final s = context.read<AppSettings>();
+    if (s.isGuest) return;
+    try {
+      final n = await OrdersService.unseenCustomerNotifs(s.user?.id ?? '');
+      if (mounted) setState(() => _customerNotifs = n);
+    } catch (_) {}
   }
 
   @override
@@ -1172,7 +1184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: s.isGuest
                                   ? Colors.grey
                                   : AppColors.orange),
-                          onPressed: () {
+                          onPressed: () async {
                             if (s.isGuest) {
                               GuestGuard.lock(
                                 context,
@@ -1191,13 +1203,18 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                               return;
                             }
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const OrdersScreen()));
+                            await OrdersService.markCustomerNotifsSeen(s.user?.id ?? '');
+                            if (mounted) setState(() => _customerNotifs = 0);
+                            if (mounted) {
+                              await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const OrdersScreen()));
+                              await _loadCustomerNotifs();
+                            }
                           },
                         ),
-                        if (!s.isGuest && s.unseenCount > 0)
+                        if (!s.isGuest && (s.unseenCount + _customerNotifs) > 0)
                           Positioned(
                             right: 6,
                             top: 6,
@@ -1205,7 +1222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
                                   color: Colors.red, shape: BoxShape.circle),
-                              child: Text('${s.unseenCount}',
+                              child: Text('${s.unseenCount + _customerNotifs}',
                                   style: const TextStyle(
                                       color: Colors.white, fontSize: 10)),
                             ),
