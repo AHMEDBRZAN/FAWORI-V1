@@ -350,9 +350,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   _BrandCfg _brandCfg(String key) => _brands.firstWhere((b) => b.key == key);
 
+  /// ✅ استخراج نوع المادة من اسمها تلقائياً
+  String _typeOf(Product p) {
+    final n = p.name.toLowerCase();
+    if (n.contains('خارجي')) return 'خارجي';
+    if (n.contains('داخلي')) return 'داخلي';
+    if (n.contains('أساس') || n.contains('اساس')) return 'أساس';
+    if (n.contains('معجون')) return 'معجون';
+    if (n.contains('برايمر')) return 'برايمر';
+    if (n.contains('فلكس')) return 'فلكس';
+    if (n.contains('عازل') || n.contains('عوازل')) return 'عوازل';
+    if (n.contains('وجه')) return 'وجه نهائي';
+    if (n.contains('سيلكون')) return 'سيلكون';
+    return 'أخرى';
+  }
+
   bool _catOk(Product p) {
     if (_catFilter == null) return true;
-    return p.category.trim() == _catFilter;
+    return _typeOf(p) == _catFilter;
   }
 
   List<String> _categories() {
@@ -361,10 +376,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
         : _products.where((p) => p.brand == _focusBrand).toList();
     final set = <String>{};
     for (final p in pool) {
-      final c = p.category.trim();
-      if (c.isNotEmpty) set.add(c);
+      set.add(_typeOf(p));
     }
-    return set.toList()..sort();
+    final list = set.toList()..sort();
+    if (list.remove('أخرى')) list.add('أخرى');
+    return list;
   }
 
   List<Product> _filterBrand(String brandKey) {
