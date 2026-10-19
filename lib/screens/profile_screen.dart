@@ -5,6 +5,7 @@ import '../core/orders_service.dart';
 import '../core/theme.dart';
 import 'about_screen.dart';
 import 'login_screen.dart';
+import 'orders_history_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -459,6 +460,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     value: s.isDark,
                     onChanged: (_) => s.toggleDark(),
                   ),
+                ),
+                Divider(height: 1, color: Colors.grey.withAlpha(40)),
+                _settingRow(
+                  context,
+                  icon: Icons.receipt_long_rounded,
+                  iconColor: AppColors.orange,
+                  label: s.isArabic ? 'سجل الطلبات' : 'Orders history',
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const OrdersHistoryScreen())),
                 ),
                 Divider(height: 1, color: Colors.grey.withAlpha(40)),
                 _settingRow(
