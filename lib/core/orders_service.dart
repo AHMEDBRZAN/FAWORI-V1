@@ -982,23 +982,6 @@ static const String _kHistTombKey = 'hist_tombstones';
       await _putJson('assets/data/invoices.json', invs);
     }
 
-    final users = await _fetchJson('assets/data/users.json');
-    if (users is List) {
-      bool matched = false;
-      for (final u in users) {
-        if (u is Map &&
-            (u['id']?.toString().trim() == o.userId ||
-                u['name']?.toString().trim() == o.userName.trim())) {
-          u['points'] =
-              ((u['points'] as num?)?.toInt() ?? 0) + o.points.toInt();
-          u['stored'] =
-              ((u['stored'] as num?)?.toInt() ?? 0) + o.stored.toInt();
-          matched = true;
-        }
-      }
-      if (matched) await _putJson('assets/data/users.json', users);
-    }
-
     await recalcUserTotals(o.userId, invoices: invList);
   }
 
