@@ -4890,8 +4890,8 @@ class _GlowState extends State<_Glow> with SingleTickerProviderStateMixin {
   }
 }
 
-class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({super.key});
+class FavoritesScreenOld extends StatelessWidget {
+  const FavoritesScreenOld({super.key});
 
   @override
   Widget build(BuildContext context) {
