@@ -42,8 +42,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           invoiceNo: f.invoiceNo,
           status: f.status,
           total: f.total,
-          points: f.points,
-          stored: f.stored,
           items: f.items.map((it) => OrderItem(name: it.name, qty: it.qty)).toList(),
         )).toList();
       } catch (_) {}
