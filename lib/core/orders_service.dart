@@ -304,6 +304,36 @@ class OrdersService {
     if (d is List) {
       list = d.map((e) => Order.fromJson(e as Map<String, dynamic>)).toList();
     }
+    // ✅ دمج طلبات Firestore مع إزالة التكرار بالمعرّف
+    try {
+      final fire = await ordersRepo.list().timeout(const Duration(seconds: 5));
+      final ids = list.map((o) => o.id).toSet();
+      for (final f in fire) {
+        if (!ids.contains(f.id)) {
+          list.add(Order(
+            id: f.id,
+            userId: f.userId,
+            userName: f.userName,
+            userRole: f.userRole,
+            date: f.date,
+            invoiceNo: f.invoiceNo,
+            status: f.status,
+            total: f.total,
+            items: f.items
+                .map((it) => OrderItem(name: it.name, qty: it.qty))
+                .toList(),
+          ));
+        }
+      }
+    } catch (_) {}
+    // ✅ دمج الطلبات المحلية المرسلة حديثاً (تظهر فوراً)
+    try {
+      final local = await loadSubmittedLocal();
+      final ids2 = list.map((o) => o.id).toSet();
+      for (final o in local) {
+        if (!ids2.contains(o.id)) list.add(o);
+      }
+    } catch (_) {}
     try {
       // ✅ إخفاء المحذوف محلياً + تنظيف السجل عند تطابق السيرفر
       final tombs = await _loadTombs();
