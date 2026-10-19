@@ -103,13 +103,6 @@ class _MainScreenState extends State<MainScreen> {
       labels.add(s.isArabic ? 'ملف شخصي' : 'Profile');
     }
 
-    // التبويب: المفضلة (للمسجلين)
-    if (!s.isGuest) {
-      screens.add(const FavoritesScreen());
-      icons.add(Icons.favorite_rounded);
-      labels.add(s.isArabic ? 'المفضلة' : 'Favorites');
-    }
-
     // التبويب: إدارة المنتجات (للمدير والمتحكم)
     if (isAdmin) {
       screens.add(const ProductAdminScreen());
