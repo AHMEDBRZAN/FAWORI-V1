@@ -594,6 +594,10 @@ static const String _kHistTombKey = 'hist_tombstones';
         await _putJson('assets/data/invoices.json', invs);
         patches.remove(id);
         await _saveInvPatches(patches);
+        final uid = '${m['userId'] ?? ''}';
+        if (uid.isNotEmpty) {
+          await recalcUserTotals(uid, invoices: invs);
+        }
       }
     }
   }
@@ -826,8 +830,9 @@ static const String _kHistTombKey = 'hist_tombstones';
   }
 
   /// ✅ إعادة احتساب نقاط/رصيد مستخدم من صافي المشتريات (شراء − مرتجع)
-  static Future<void> recalcUserTotals(String userId) async {
-    final invs = await _fetchJson('assets/data/invoices.json');
+  static Future<void> recalcUserTotals(String userId,
+      {List<dynamic>? invoices}) async {
+    final invs = invoices ?? await _fetchJson('assets/data/invoices.json');
     if (invs is! List) return;
     int sales = 0;
     int rets = 0;
@@ -957,7 +962,9 @@ static const String _kHistTombKey = 'hist_tombstones';
     o.status = 'accepted';
     await updateOrder(o);
 
+    List<dynamic>? invList;
     final invs = await _fetchJson('assets/data/invoices.json');
+    invList = invs is List ? invs : null;
     if (invs is List) {
       invs.add({
         'id': o.id,
@@ -992,7 +999,7 @@ static const String _kHistTombKey = 'hist_tombstones';
       if (matched) await _putJson('assets/data/users.json', users);
     }
 
-    await recalcUserTotals(o.userId);
+    await recalcUserTotals(o.userId, invoices: invList);
   }
 
   static Future<void> rejectOrder(Order o) async {
