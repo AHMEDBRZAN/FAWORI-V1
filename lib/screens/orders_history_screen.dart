@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import '../core/orders_service.dart';
+import '../core/repositories/orders_repo.dart';
 import '../core/theme.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
@@ -28,7 +29,27 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       return;
     }
     try {
-      final all = await OrdersService.loadOrders();
+      // ✅ قراءة من Firestore أولاً ثم السقوط إلى JSON
+      List<Order> all = [];
+      try {
+        final fireOrders = await ordersRepo.list().timeout(const Duration(seconds: 5));
+        all = fireOrders.map((f) => Order(
+          id: f.id,
+          userId: f.userId,
+          userName: f.userName,
+          userRole: f.userRole,
+          date: f.date,
+          invoiceNo: f.invoiceNo,
+          status: f.status,
+          total: f.total,
+          points: f.points,
+          stored: f.stored,
+          items: f.items.map((it) => OrderItem(name: it.name, qty: it.qty)).toList(),
+        )).toList();
+      } catch (_) {}
+      if (all.isEmpty) {
+        all = await OrdersService.loadOrders();
+      }
       final mine = all.where((o) => o.userId == uid).toList()
         ..sort((a, b) => b.id.compareTo(a.id));
       if (mounted) {
