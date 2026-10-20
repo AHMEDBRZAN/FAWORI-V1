@@ -941,6 +941,67 @@ static const String _kHistTombKey = 'hist_tombstones';
     return tombs.isNotEmpty;
   }
 
+  /// ✅ حساب نقاط ورصيد وبيانات محفظة المستخدم — نفس المصدر لكلا الشاشتين
+  static Future<({int points, int stored, List<Invoice> invoices, List<Map<String, dynamic>> returns})>
+      computeUserWallet(String uid) async {
+    // 1) توحيد حسابات الهاتف (حساب العميل + أي حساب بنفس الرقم)
+    final ids = <String>{uid};
+    try {
+      String ph = '';
+      final jsonUsers = await StoreService.loadUsers();
+      for (final x in jsonUsers) {
+        if (x.id == uid) ph = x.phone.trim();
+      }
+      if (ph.isEmpty) {
+        try {
+          for (final x in await userRepo.listUsers()) {
+            if (x.id == uid) ph = x.phone.trim();
+          }
+        } catch (_) {}
+      }
+      if (ph.isNotEmpty) {
+        for (final x in jsonUsers) {
+          if (x.phone.trim() == ph) ids.add(x.id);
+        }
+        try {
+          for (final x in await userRepo.listUsers()) {
+            if (x.phone.trim() == ph) ids.add(x.id);
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    // 2) جلب الفواتير والمرتجعات من المصدر الموحد
+    final allInvs = await loadInvoicesFiltered();
+    final allRets = await loadReturnsFiltered();
+    final invs = allInvs.where((i) => ids.contains(i.userId)).toList();
+    final rets = allRets
+        .where((r) => ids.contains('${r['userId'] ?? ''}'))
+        .toList();
+
+    // 3) حساب النقاط والرصيد بنفس منطق المحفظة (صافي المشتريات)
+    int sales = 0;
+    int retTotal = 0;
+    for (final i in invs) {
+      if (i.type == 'sale') {
+        sales += i.total.toInt();
+      } else if (i.type == 'return') {
+        retTotal += i.total.toInt().abs();
+      }
+    }
+    for (final r in rets) {
+      retTotal += ((r['total'] as num?)?.toInt() ?? 0).abs();
+    }
+    final net = (sales - retTotal).clamp(0, 999999999);
+    return (
+      points: net ~/ kPointUnit,
+      stored: net % kPointUnit,
+      invoices: invs,
+      returns: rets,
+    );
+  }
+
+
   /// ✅ إعادة احتساب نقاط/رصيد مستخدم من صافي المشتريات (شراء − مرتجع)
   static Future<void> recalcUserTotals(String userId,
       {List<dynamic>? invoices}) async {
