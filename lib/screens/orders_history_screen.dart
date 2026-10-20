@@ -295,6 +295,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   Widget _foot(String label, String value, Color c) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    // ✅ نص أسود غامق (أبيض في الوضع الداكن للقراءة)
+    final Color txt = dark ? Colors.white : const Color(0xFF1A1A1A);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -307,13 +310,13 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         children: [
           Text(label,
               style: TextStyle(
-                  color: c, fontSize: 10, fontWeight: FontWeight.w800)),
+                  color: txt, fontSize: 10, fontWeight: FontWeight.w800)),
           const SizedBox(width: 6),
           Directionality(
             textDirection: TextDirection.ltr,
             child: Text(value,
                 style: TextStyle(
-                    color: c, fontSize: 12, fontWeight: FontWeight.w900)),
+                    color: txt, fontSize: 12, fontWeight: FontWeight.w900)),
           ),
         ],
       ),
