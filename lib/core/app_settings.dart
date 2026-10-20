@@ -6,6 +6,7 @@ import 'messenger.dart';
 import 'orders_service.dart';
 import 'store_service.dart';
 import 'repositories/orders_repo.dart';
+import 'orders_service.dart';
 import 'repositories/invoice_repo.dart';
 import 'repositories/user_repo.dart' as repo;
 
@@ -206,8 +207,14 @@ class AppSettings extends ChangeNotifier {
 
   Future<User> _withInvoiceTotals(User base) async {
     try {
-      final invs = await invoiceRepo.list();
-      final rets = await returnsRepo.list();
+      final invTombs = await OrdersService.invoiceTombs();
+      final retTombs = await OrdersService.returnTombs();
+      final invs = (await invoiceRepo.list())
+          .where((f) => !invTombs.contains(f.id))
+          .toList();
+      final rets = (await returnsRepo.list())
+          .where((f) => !retTombs.contains(f.id))
+          .toList();
       int pts = 0;
       int st = 0;
       for (final f in invs) {
