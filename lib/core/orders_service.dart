@@ -737,8 +737,6 @@ static const String _kHistTombKey = 'hist_tombstones';
                   invoiceNo: f.invoiceNo,
                   status: f.status,
                   total: f.total,
-                  points: f.points,
-                  stored: f.stored,
                   items: f.items
                       .map((it) => OrderItem(name: it.name, qty: it.qty))
                       .toList(),
@@ -920,8 +918,6 @@ static const String _kHistTombKey = 'hist_tombstones';
                   invoiceNo: f.invoiceNo,
                   status: f.status,
                   total: f.total,
-                  points: f.points,
-                  stored: f.stored,
                   items: f.items
                       .map((it) => OrderItem(name: it.name, qty: it.qty))
                       .toList(),
