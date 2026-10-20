@@ -1692,7 +1692,10 @@ Set<String> _histDel = {};
                 stored: a.stored,
               ))
           .toList();
-      final fireInvs = await invoiceRepo.list();
+      final invTombs2 = await OrdersService.invoiceTombs();
+      final fireInvs = (await invoiceRepo.list())
+          .where((f) => !invTombs2.contains(f.id))
+          .toList();
       final i = fireInvs
           .where((f) => f.type != 'return')
           .map((f) => Invoice(
@@ -1714,7 +1717,10 @@ Set<String> _histDel = {};
                 source: f.source,
               ))
           .toList();
-      final fireRets = await returnsRepo.list();
+      final retTombs2 = await OrdersService.returnTombs();
+      final fireRets = (await returnsRepo.list())
+          .where((f) => !retTombs2.contains(f.id))
+          .toList();
       final r = <Map<String, dynamic>>[
         ...fireRets.map((f) => <String, dynamic>{
               'id': f.id,
