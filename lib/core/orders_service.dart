@@ -719,30 +719,58 @@ static const String _kHistTombKey = 'hist_tombstones';
 
   static Future<List<Invoice>> loadInvoicesFiltered() async {
     final list = await StoreService.loadInvoices();
-    // ✅ دمج الفواتير المقبولة التي لم تصل للسيرفر بعد
-    final tombs0 = await _loadSet(_kInvTombKey);
+    // ✅ دمج الطلبات المقبولة مباشرة من Firestore + المحلي (لا JSON)
     try {
-      final orders = await loadOrders();
-      final ids = list.map((e) => e.id).toSet();
-      for (final o in orders) {
-        if (tombs0.contains(o.id)) continue;
-        if ((o.status == 'accepted' || o.status == 'completed') &&
-            !ids.contains(o.id)) {
-          list.add(Invoice(
-            id: o.id,
-            userId: o.userId,
-            no: o.invoiceNo,
-            date: o.date,
-            total: o.total,
-            points: o.points.toInt(),
-            stored: o.stored.toInt(),
-            type: 'sale',
-            source: 'online',
-            items: o.items
-                .map((e) => InvoiceItem(name: e.name, price: 0, qty: e.qty))
-                .toList(),
-          ));
-        }
+      final tombsR = await _loadSet(_kInvTombKey);
+      invs.removeWhere((e) => e is Map && tombsR.contains('${e['id']}'));
+      final ids = invs.whereType<Map>().map((e) => '${e['id']}').toSet();
+      // طلبات Firestore مباشرة
+      List<Order> fireOrders = [];
+      try {
+        final fo = await ordersRepo.list().timeout(const Duration(seconds: 5));
+        fireOrders = fo
+            .map((f) => Order(
+                  id: f.id,
+                  userId: f.userId,
+                  userName: f.userName,
+                  userRole: f.userRole,
+                  date: f.date,
+                  invoiceNo: f.invoiceNo,
+                  status: f.status,
+                  total: f.total,
+                  points: f.points,
+                  stored: f.stored,
+                  items: f.items
+                      .map((it) => OrderItem(name: it.name, qty: it.qty))
+                      .toList(),
+                ))
+            .toList();
+      } catch (_) {}
+      // الطلبات المحلية الفورية
+      List<Order> localOrders = [];
+      try {
+        localOrders = await loadSubmittedLocal();
+      } catch (_) {}
+      final all = <Order>[...fireOrders, ...localOrders];
+      final seen = <String>{};
+      for (final o in all) {
+        if (seen.contains(o.id)) continue;
+        seen.add(o.id);
+        if (tombsR.contains(o.id)) continue;
+        if (o.userId != userId) continue;
+        if (o.status != 'accepted' && o.status != 'completed') continue;
+        if (ids.contains(o.id)) continue;
+        invs.add({
+          'id': o.id,
+          'userId': o.userId,
+          'date': o.date,
+          'type': 'sale',
+          'no': o.invoiceNo,
+          'total': o.total,
+          'points': o.points.toInt(),
+          'stored': o.stored.toInt(),
+          'source': 'online',
+        });
       }
     } catch (_) {}
     final tombs = await _loadSet(_kInvTombKey);
