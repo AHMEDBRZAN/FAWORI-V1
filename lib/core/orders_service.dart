@@ -942,7 +942,7 @@ static const String _kHistTombKey = 'hist_tombstones';
     return tombs.isNotEmpty;
   }
 
-  /// ✅ حساب نقاط ورصيد وبيانات محفظة المستخدم — نفس المصدر لكلا الشاشتين
+  /// ✅ حساب نقاط ورصيد وبيانات محفظة المستخدم — نفس مصدر المحفظة الأصلي
   static Future<({int points, int stored, List<Invoice> invoices, List<Map<String, dynamic>> returns})>
       computeUserWallet(String uid) async {
     // 1) توحيد حسابات الهاتف (حساب العميل + أي حساب بنفس الرقم)
@@ -972,15 +972,72 @@ static const String _kHistTombKey = 'hist_tombstones';
       }
     } catch (_) {}
 
-    // 2) جلب الفواتير والمرتجعات من المصدر الموحد
-    final allInvs = await loadInvoicesFiltered();
-    final allRets = await loadReturnsFiltered();
-    final invs = allInvs.where((i) => ids.contains(i.userId)).toList();
-    final rets = allRets
-        .where((r) => ids.contains('${r['userId'] ?? ''}'))
+    // 2) ✅ الفواتير من Firestore مباشرة مع الطوابع (نفس منطق المحفظة الأصلي)
+    final invTombs = await _loadSet(_kInvTombKey);
+    final fireInvs = (await invoiceRepo.list())
+        .where((f) => !invTombs.contains(f.id))
+        .toList();
+    final invs = fireInvs
+        .where((f) => ids.contains(f.userId) && f.type != 'return')
+        .map((f) => Invoice(
+              id: f.id,
+              userId: f.userId,
+              no: f.no,
+              date: f.date,
+              total: f.total,
+              points: f.points,
+              stored: f.stored,
+              type: f.type,
+              items: f.items
+                  .map((it) => InvoiceItem.fromJson(it.toMap()))
+                  .toList(),
+              legacyNo: f.legacyNo,
+              customerName: f.customerName,
+              cashier: f.cashier,
+              time: f.time,
+              source: f.source,
+            ))
         .toList();
 
-    // 3) حساب النقاط والرصيد بنفس منطق المحفظة (صافي المشتريات)
+    // 3) ✅ المرتجعات من Firestore مباشرة مع الطوابع
+    final retTombs = await _loadSet(_kRetTombKey);
+    final fireRets = (await returnsRepo.list())
+        .where((f) => !retTombs.contains(f.id))
+        .toList();
+    final rets = <Map<String, dynamic>>[
+      ...fireRets
+          .where((f) => ids.contains(f.userId))
+          .map((f) => <String, dynamic>{
+                'id': f.id,
+                'orderId': f.orderId,
+                'userId': f.userId,
+                'date': f.date,
+                'no': f.no,
+                'purchaseNo': f.purchaseNo,
+                'total': f.total,
+                'points': f.points,
+                'stored': f.stored,
+                'items': f.items.map((it) => it.toMap()).toList(),
+                'legacy': false,
+              }),
+      ...fireInvs
+          .where((f) => ids.contains(f.userId) && f.type == 'return')
+          .map((f) => <String, dynamic>{
+                'id': f.id,
+                'orderId': '',
+                'userId': f.userId,
+                'date': f.date,
+                'no': f.no,
+                'purchaseNo': f.legacyNo,
+                'total': -f.total.abs().toInt(),
+                'points': -f.points.abs(),
+                'stored': -f.stored.abs(),
+                'items': f.items.map((it) => it.toMap()).toList(),
+                'legacy': true,
+              }),
+    ];
+
+    // 4) حساب النقاط والرصيد بنفس منطق المحفظة (صافي المشتريات)
     int sales = 0;
     int retTotal = 0;
     for (final i in invs) {
