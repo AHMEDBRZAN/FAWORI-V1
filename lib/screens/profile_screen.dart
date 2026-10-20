@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
-import '../core/images_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/orders_service.dart';
 import '../core/theme.dart';
 import 'about_screen.dart';
@@ -24,6 +26,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _avatarBuster = 0;
 
   static const String _base = 'https://ahmedbrzan.github.io/FAWORI-V1';
+  static const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
+  static const String _kTokenKey = 'github_avatar_token';
 
   @override
   void initState() {
@@ -73,15 +77,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// ✅ رفع صورة شخصية وحفظها في المستودع
+  /// ✅ طلب التوكن من المستخدم (يُحفظ ولا يُطلب مجدداً)
+  Future<String?> _askToken(BuildContext ctx, AppSettings s) async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        backgroundColor: Theme.of(ctx).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.key_rounded, color: AppColors.orange),
+            const SizedBox(width: 8),
+            Text(s.isArabic ? 'توكن GitHub' : 'GitHub Token',
+                style: const TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              s.isArabic
+                  ? 'أدخل توكن GitHub الخاص بك (يُحفظ محلياً ولا يُطلب مرة أخرى).\n\nيُنشأ من: github.com/settings/tokens\nمع صلاحية: repo'
+                  : 'Enter your GitHub token (saved locally, asked once).\n\nCreate at: github.com/settings/tokens\nScope: repo',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: 'ghp_...',
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: Text(s.isArabic ? 'إلغاء' : 'Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.orange,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(c, ctrl.text.trim()),
+            child: Text(s.isArabic ? 'حفظ' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    return (result == null || result.isEmpty) ? null : result;
+  }
+
+  /// ✅ رفع الصورة عبر Cloudflare Worker الموجود أصلاً
   Future<void> _uploadAvatar() async {
     final s = context.read<AppSettings>();
     final uid = s.user?.id ?? '';
     if (uid.isEmpty) return;
-    String tk = await ImagesService.resolveToken();
+    final prefs = await SharedPreferences.getInstance();
+    String tk = prefs.getString(_kTokenKey) ?? '';
     if (tk.isEmpty) {
-      final t = await ImagesService.askGitHubToken(context);
+      final t = await _askToken(context, s);
       if (t == null) return;
       tk = t;
+      await prefs.setString(_kTokenKey, tk);
     }
     try {
       final f = await ImagePicker().pickImage(
@@ -90,7 +157,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _avatarBusy = true);
       final bytes = await f.readAsBytes();
       final path = 'assets/images/avatars/avatar_$uid.webp';
-      await ImagesService.putBytes(path, bytes, tk, 'avatar $uid');
+      final body = jsonEncode({
+        'path': path,
+        'content': base64Encode(bytes),
+        'token': tk,
+        'message': 'avatar $uid',
+      });
+      final r = await http
+          .post(
+            Uri.parse(_kProxy),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 30));
+      if (r.statusCode != 200 && r.statusCode != 201) {
+        throw Exception('HTTP ${r.statusCode}');
+      }
       if (mounted) {
         setState(() {
           _avatarBusy = false;
