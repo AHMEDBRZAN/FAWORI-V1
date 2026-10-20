@@ -78,12 +78,34 @@ class _WalletScreenState extends State<WalletScreen> {
       });
       return;
     }
+    // ✅ توحيد حسابات العميل بنفس الهاتف (كما يراها المتحكم مجمعة)
+    final ids = <String>{uid};
+    try {
+      String ph = '';
+      final jsonUsers = await StoreService.loadUsers();
+      for (final x in jsonUsers) {
+        if (x.id == uid) ph = x.phone.trim();
+      }
+      if (ph.isEmpty) {
+        for (final x in await userRepo.listUsers()) {
+          if (x.id == uid) ph = x.phone.trim();
+        }
+      }
+      if (ph.isNotEmpty) {
+        for (final x in jsonUsers) {
+          if (x.phone.trim() == ph) ids.add(x.id);
+        }
+        for (final x in await userRepo.listUsers()) {
+          if (x.phone.trim() == ph) ids.add(x.id);
+        }
+      }
+    } catch (_) {}
     final invTombs = await OrdersService.invoiceTombs();
     final fireInvs = (await invoiceRepo.list())
         .where((f) => !invTombs.contains(f.id))
         .toList();
     final invs = fireInvs
-        .where((f) => f.userId == uid && f.type != 'return')
+        .where((f) => ids.contains(f.userId) && f.type != 'return')
         .map((f) => Invoice(
               id: f.id,
               userId: f.userId,
@@ -109,7 +131,7 @@ class _WalletScreenState extends State<WalletScreen> {
         .toList();
     final rets = <Map<String, dynamic>>[
       ...fireRets
-          .where((f) => f.userId == uid)
+          .where((f) => ids.contains(f.userId))
           .map((f) => <String, dynamic>{
                 'id': f.id,
                 'orderId': f.orderId,
@@ -124,7 +146,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 'legacy': false,
               }),
       ...fireInvs
-          .where((f) => f.userId == uid && f.type == 'return')
+          .where((f) => ids.contains(f.userId) && f.type == 'return')
           .map((f) => <String, dynamic>{
                 'id': f.id,
                 'orderId': '',
@@ -538,14 +560,14 @@ class _WalletScreenState extends State<WalletScreen> {
     final s = context.watch<AppSettings>();
     if (s.isAdmin || s.isImageAdmin) return const AdminPointsView();
     final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final mine = _invoices.where((i) => i.userId == s.user?.id).toList();
+    final mine = _invoices.toList();
 
     final rows = <Map<String, dynamic>>[
       for (final i in mine.where((x) => x.type == 'sale'))
         {'kind': 'sale', 'inv': i},
       for (final i in mine.where((x) => x.type == 'return'))
         {'kind': 'return', 'inv': i},
-      for (final r in _returns.where((x) => x['userId'] == s.user?.id))
+      for (final r in _returns)
         {'kind': 'return', 'ret': r},
       // ✅ دمج السجل التاريخي مع الفواتير (نفس القائمة والفلاتر)
       for (final h in _history)
