@@ -1,3 +1,4 @@
+import 'repositories/invoice_repo.dart';
 import 'repositories/orders_repo.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -1002,6 +1003,17 @@ static const String _kHistTombKey = 'hist_tombstones';
 
   static Future<void> deleteInvoice(String id) async {
     await markInvoiceDeleted(id); // ✅ إخفاء فوري محلياً قبل دفع الحذف
+    // ✅ حذف من Firestore حتى لا تعود الفاتورة عند أي ترحيل
+    try {
+      await invoiceRepo.delete(id);
+    } catch (_) {}
+    // ✅ حذف مرتجعاتها من مجموعة المرتجعات في Firestore
+    try {
+      final fireRets = await returnsRepo.list();
+      for (final r in fireRets.where((x) => x.orderId == id)) {
+        await returnsRepo.delete(r.id);
+      }
+    } catch (_) {}
     final invs = await _fetchJson('assets/data/invoices.json');
     String uid = '';
     if (invs is List) {
@@ -1024,6 +1036,10 @@ static const String _kHistTombKey = 'hist_tombstones';
 
   static Future<void> deleteReturn(String id) async {
     await markReturnDeleted(id); // ✅ إخفاء فوري محلياً قبل دفع الحذف
+    // ✅ حذف المرتجع من Firestore حتى لا يعود عند الترحيل
+    try {
+      await returnsRepo.delete(id);
+    } catch (_) {}
     final rets = await loadReturns();
     String uid = '';
     for (final r in rets) {
