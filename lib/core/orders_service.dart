@@ -721,6 +721,7 @@ static const String _kHistTombKey = 'hist_tombstones';
     final list = await StoreService.loadInvoices();
     // ✅ دمج فوري من ثلاث مصادر: Firestore + محلي + JSON (لا يعتمد على loadOrders)
     final tombs0 = await _loadSet(_kInvTombKey);
+    final onlineIds = <String>{};
     try {
       final ids = list.map((e) => e.id).toSet();
       // 1) طلبات Firestore المقبولة مباشرة
@@ -765,9 +766,10 @@ static const String _kHistTombKey = 'hist_tombstones';
       for (final o in all) {
         if (seen.contains(o.id)) continue;
         seen.add(o.id);
+        if (o.status != 'accepted' && o.status != 'completed') continue;
+        onlineIds.add(o.id);
         if (tombs0.contains(o.id)) continue;
         if (ids.contains(o.id)) continue;
-        if (o.status != 'accepted' && o.status != 'completed') continue;
         list.add(Invoice(
           id: o.id,
           userId: o.userId,
@@ -787,7 +789,8 @@ static const String _kHistTombKey = 'hist_tombstones';
     final tombs = await _loadSet(_kInvTombKey);
     if (tombs.isNotEmpty) {
       final ids = list.map((e) => e.id).toSet();
-      tombs.removeWhere((id) => !ids.contains(id));
+      // ✅ احتفظ بطوابع الفواتير أونلاين (لا توجد في JSON أبداً)
+      tombs.removeWhere((id) => !ids.contains(id) && !onlineIds.contains(id));
       await _saveSet(_kInvTombKey, tombs);
       list.removeWhere((e) => tombs.contains(e.id));
     }
