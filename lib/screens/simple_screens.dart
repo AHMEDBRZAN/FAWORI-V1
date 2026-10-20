@@ -78,7 +78,10 @@ class _WalletScreenState extends State<WalletScreen> {
       });
       return;
     }
-    final fireInvs = await invoiceRepo.list();
+    final invTombs = await OrdersService.invoiceTombs();
+    final fireInvs = (await invoiceRepo.list())
+        .where((f) => !invTombs.contains(f.id))
+        .toList();
     final invs = fireInvs
         .where((f) => f.userId == uid && f.type != 'return')
         .map((f) => Invoice(
@@ -100,7 +103,10 @@ class _WalletScreenState extends State<WalletScreen> {
               source: f.source,
             ))
         .toList();
-    final fireRets = await returnsRepo.list();
+    final retTombs = await OrdersService.returnTombs();
+    final fireRets = (await returnsRepo.list())
+        .where((f) => !retTombs.contains(f.id))
+        .toList();
     final rets = <Map<String, dynamic>>[
       ...fireRets
           .where((f) => f.userId == uid)
