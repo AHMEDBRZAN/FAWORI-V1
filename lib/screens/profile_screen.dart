@@ -3,9 +3,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/orders_service.dart';
+import '../core/repositories/user_repo.dart';
+import '../core/store_service.dart';
 import '../core/theme.dart';
 import 'about_screen.dart';
 import 'login_screen.dart';
@@ -22,12 +23,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _pts = 0;
   int _st = 0;
   bool _avatarBusy = false;
-  String? _avatarUrl;
-  int _avatarBuster = 0;
+  String? _avatarB64;
 
-  static const String _base = 'https://ahmedbrzan.github.io/FAWORI-V1';
-  static const String _kProxy = 'https://fawori.ahmdkaka1997.workers.dev/put';
-  static const String _kTokenKey = 'github_avatar_token';
+  // ✅ الصورة الشخصية تُحفظ داخل Firestore — بدون توكن ولا مستودع
 
   @override
   void initState() {
@@ -42,17 +40,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final s = context.read<AppSettings>();
     final uid = s.user?.id ?? '';
     if (uid.isEmpty || s.isGuest) return;
+    // ✅ تحميل الصورة الشخصية من Firestore
+    try {
+      final d = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final b64 = (d.data()?['avatar'] ?? '') as String;
+      if (mounted && b64.isNotEmpty) setState(() => _avatarB64 = b64);
+    } catch (_) {}
     try {
       await OrdersService.recalcUserTotals(uid);
       await s.refreshUser();
     } catch (_) {}
     try {
+      // ✅ توحيد مطابق للمحفظة: نفس الهاتف = نفس الحساب
+      final ids = <String>{uid};
+      try {
+        String ph = '';
+        final jsonUsers = await StoreService.loadUsers();
+        for (final x in jsonUsers) {
+          if (x.id == uid) ph = x.phone.trim();
+        }
+        if (ph.isEmpty) {
+          for (final x in await userRepo.listUsers()) {
+            if (x.id == uid) ph = x.phone.trim();
+          }
+        }
+        if (ph.isNotEmpty) {
+          for (final x in jsonUsers) {
+            if (x.phone.trim() == ph) ids.add(x.id);
+          }
+          for (final x in await userRepo.listUsers()) {
+            if (x.phone.trim() == ph) ids.add(x.id);
+          }
+        }
+      } catch (_) {}
       final invs = await OrdersService.loadInvoicesFiltered();
       final rets = await OrdersService.loadReturnsFiltered();
       int sales = 0;
       int ret = 0;
       for (final i in invs) {
-        if (i.userId == uid) {
+        if (ids.contains(i.userId)) {
           if (i.type == 'sale') {
             sales += i.total.toInt();
           } else if (i.type == 'return') {
@@ -61,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
       for (final r in rets) {
-        if (r['userId'] == uid) {
+        if (ids.contains('${r['userId'] ?? ''}')) {
           ret += ((r['total'] as num?)?.toInt() ?? 0).abs();
         }
       }
@@ -70,14 +99,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() {
           _pts = net ~/ kPointUnit;
           _st = net % kPointUnit;
-          _avatarUrl = '$_base/assets/images/avatars/avatar_$uid.webp';
         });
       }
     } catch (_) {}
   }
 
   /// ✅ رفع صورة شخصية وحفظها في المستودع
-  /// ✅ طلب التوكن من المستخدم (يُحفظ ولا يُطلب مجدداً)
+  /// ✅ رفع الصورة إلى Firestore مباشرة — بدون توكن
+  Future<void> _uploadAvatar() async {
+    final s = context.read<AppSettings>();
+    final uid = s.user?.id ?? '';
+    if (uid.isEmpty) return;
+    try {
+      final f = await ImagePicker().pickImage(
+          source: ImageSource.gallery, imageQuality: 70, maxWidth: 512);
+      if (f == null) return;
+      final bytes = await f.readAsBytes();
+      if (bytes.lengthInBytes > 900 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(s.isArabic
+                ? 'الصورة كبيرة جداً — اختر صورة أصغر'
+                : 'Image too large — pick a smaller one'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        return;
+      }
+      setState(() => _avatarBusy = true);
+      final b64 = base64Encode(bytes);
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({'avatar': b64}, SetOptions(merge: true));
+      if (mounted) {
+        setState(() {
+          _avatarBusy = false;
+          _avatarB64 = b64;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(s.isArabic
+              ? '✅ تم حفظ الصورة الشخصية'
+              : '✅ Avatar saved'),
+          backgroundColor: AppColors.teal,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _avatarBusy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(s.isArabic ? 'فشل الرفع: $e' : 'Upload failed: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
   Future<String?> _askToken(BuildContext ctx, AppSettings s) async {
     final ctrl = TextEditingController();
     final result = await showDialog<String>(
@@ -610,13 +689,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Row(
                             children: [
-                              IconButton(
-                                onPressed: () => Navigator.pop(context),
-                                icon: const Icon(
-                                    Icons.arrow_back_rounded,
-                                    color: Colors.white,
-                                    size: 26),
-                              ),
                               const Spacer(),
                               // ✅ شعار فاوري
                               Container(
@@ -742,34 +814,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ),
                                 child: ClipOval(
-                                  child: _avatarUrl != null
-                                      ? Image.network(
-                                          '$_avatarUrl?b=$_avatarBuster',
+                                  child: _avatarB64 != null
+                                      ? Image.memory(
+                                          base64Decode(_avatarB64!),
                                           width: 110,
                                           height: 110,
                                           fit: BoxFit.cover,
                                           gaplessPlayback: true,
-                                          loadingBuilder:
-                                              (c, child, progress) {
-                                            if (progress == null) {
-                                              return child;
-                                            }
-                                            return Center(
-                                              child:
-                                                  CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: roleColor,
-                                                value: progress
-                                                            .expectedTotalBytes !=
-                                                        null
-                                                    ? progress
-                                                            .cumulativeBytesLoaded /
-                                                        progress
-                                                            .expectedTotalBytes!
-                                                    : null,
-                                              ),
-                                            );
-                                          },
                                           errorBuilder: (_, __, ___) =>
                                               Center(
                                             child: Text(
