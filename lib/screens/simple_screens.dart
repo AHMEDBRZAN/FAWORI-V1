@@ -491,13 +491,15 @@ class _WalletScreenState extends State<WalletScreen> {
   String _typeLabel(Invoice inv, bool ar) {
     if (inv.type == 'return') return ar ? 'مرتجع' : 'Return';
     if (inv.type == 'stored_point') return ar ? 'الرصيد المخزن' : 'Stored';
-    return ar ? 'شراء' : 'Sale';
+    if (inv.source == 'online') return ar ? 'شراء أونلاين' : 'Online sale';
+    return ar ? 'من الحاسبة' : 'Calculator';
   }
 
   Color _typeColor(Invoice inv) {
     if (inv.type == 'return') return Colors.red;
     if (inv.type == 'stored_point') return const Color(0xFF9B59B6);
-    return AppColors.teal;
+    if (inv.source == 'online') return const Color(0xFF2196F3);
+    return AppColors.orange;
   }
 
   List<Map<String, dynamic>> _sourcesFor(Invoice conv) {
@@ -2121,7 +2123,7 @@ Set<String> _histDel = {};
     );
     if (ok != true) return;
     try {
-      final invs = await StoreService.loadInvoices();
+      final invs = await OrdersService.loadInvoicesFiltered();
       final fireInvs = invs
           .map((i) => FireInvoice(
                 id: i.id,
@@ -2177,7 +2179,7 @@ Set<String> _histDel = {};
         }
       }
       await invoiceRepo.importMany(fireInvs);
-      final rets = await OrdersService.loadReturns();
+      final rets = await OrdersService.loadReturnsFiltered();
       final fireRets = rets
           .map((r) => FireReturn(
                 id: '${r['id']}',
