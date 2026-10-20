@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_settings.dart';
 import '../core/orders_service.dart';
-import '../core/repositories/orders_repo.dart';
 import '../core/theme.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
@@ -14,109 +13,74 @@ class OrdersHistoryScreen extends StatefulWidget {
 class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   List<Order> _orders = [];
   bool _loading = true;
+  String? _err;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   Future<void> _load() async {
-    final s = context.read<AppSettings>();
-    final uid = s.user?.id ?? '';
-    if (uid.isEmpty) {
-      if (mounted) setState(() => _loading = false);
-      return;
-    }
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _err = null;
+    });
     try {
-      // ✅ قراءة من Firestore أولاً ثم السقوط إلى JSON
-      List<Order> all = [];
-      try {
-        final fireOrders = await ordersRepo.list().timeout(const Duration(seconds: 5));
-        all = fireOrders.map((f) => Order(
-          id: f.id,
-          userId: f.userId,
-          userName: f.userName,
-          userRole: f.userRole,
-          date: f.date,
-          invoiceNo: f.invoiceNo,
-          status: f.status,
-          total: f.total,
-          items: f.items.map((it) => OrderItem(name: it.name, qty: it.qty)).toList(),
-        )).toList();
-      } catch (_) {}
-      if (all.isEmpty) {
-        all = await OrdersService.loadOrders();
-      }
-      final mine = all.where((o) => o.userId == uid).toList()
-        ..sort((a, b) => b.id.compareTo(a.id));
-      if (mounted) {
-        setState(() {
-          _orders = mine;
-          _loading = false;
-        });
-      }
-    } catch (_) {
+      final s = context.read<AppSettings>();
+      final uid = s.user?.id ?? '';
+      final all = await OrdersService.loadOrders();
+      final mine = all.where((o) => o.userId == uid).toList();
+      mine.sort((a, b) => _ts(b).compareTo(_ts(a)));
+      if (mounted) setState(() => _orders = mine);
+    } catch (e) {
+      if (mounted) setState(() => _err = '$e');
+    } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  String _statusAr(String status) {
-    switch (status) {
-      case 'pending':
-        return 'قيد المراجعة';
-      case 'approved':
-        return 'مقبول';
-      case 'rejected':
-        return 'مرفوض';
-      case 'completed':
-        return 'مكتمل';
-      default:
-        return status;
-    }
-  }
+  int _ts(Order o) =>
+      DateTime.tryParse(o.date)?.millisecondsSinceEpoch ??
+      (int.tryParse(o.id) ?? 0);
 
-  String _statusEn(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-      case 'approved':
-        return 'Approved';
-      case 'rejected':
-        return 'Rejected';
-      case 'completed':
-        return 'Completed';
-      default:
-        return status;
-    }
-  }
+  String _ref(Order o) => o.invoiceNo.isNotEmpty
+      ? o.invoiceNo
+      : '#${o.id.length > 6 ? o.id.substring(o.id.length - 6) : o.id}';
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return AppColors.orange;
-      case 'approved':
+  ({String label, Color color, IconData icon}) _statusOf(Order o, bool ar) {
+    switch (o.status) {
+      case 'accepted':
+        return (
+          label: ar ? 'مقبول' : 'Accepted',
+          color: AppColors.teal,
+          icon: Icons.check_circle_rounded
+        );
       case 'completed':
-        return const Color(0xFF0D9668);
+        return (
+          label: ar ? 'مكتمل' : 'Completed',
+          color: AppColors.teal,
+          icon: Icons.verified_rounded
+        );
       case 'rejected':
-        return Colors.red;
+        return (
+          label: ar ? 'مرفوض' : 'Rejected',
+          color: Colors.red,
+          icon: Icons.cancel_rounded
+        );
+      case 'returned':
+        return (
+          label: ar ? 'مرتجع' : 'Returned',
+          color: const Color(0xFF9B59B6),
+          icon: Icons.assignment_return_rounded
+        );
       default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'pending':
-        return Icons.hourglass_empty_rounded;
-      case 'approved':
-        return Icons.check_circle_outline_rounded;
-      case 'completed':
-        return Icons.check_circle_rounded;
-      case 'rejected':
-        return Icons.cancel_outlined;
-      default:
-        return Icons.help_outline_rounded;
+        return (
+          label: ar ? 'قيد المراجعة' : 'Pending',
+          color: AppColors.orange,
+          icon: Icons.hourglass_top_rounded
+        );
     }
   }
 
@@ -124,177 +88,235 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   Widget build(BuildContext context) {
     final s = context.watch<AppSettings>();
     final dark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor:
           dark ? const Color(0xFF141419) : const Color(0xFFFFF8F1),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(s.isArabic ? 'سجل الطلبات' : 'Orders history',
-            style:
-                const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.orange),
-            onPressed: _load,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  IconButton(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: AppColors.orange)),
+                  Expanded(
+                    child: Text(
+                      s.isArabic ? 'سجل الطلبات' : 'Orders history',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_forward_rounded)),
+                ],
+              ),
+            ),
+            if (_loading)
+              const Expanded(
+                  child: Center(child: CircularProgressIndicator()))
+            else if (_err != null)
+              Expanded(
+                  child: Center(
+                      child:
+                          Text(_err!, style: const TextStyle(color: Colors.red))))
+            else if (_orders.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.receipt_long_outlined,
+                          size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      Text(
+                          s.isArabic
+                              ? 'لا توجد طلبات بعد'
+                              : 'No orders yet',
+                          style: TextStyle(color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    itemCount: _orders.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) => _card(_orders[i], s, dark),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _card(Order o, AppSettings s, bool dark) {
+    final st = _statusOf(o, s.isArabic);
+    final pieces = o.items.fold<int>(0, (a, it) => a + it.qty);
+    final hasMoney = o.total > 0;
+    final hasPoints = o.points > 0;
+    return Container(
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF1E1E28) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: st.color.withAlpha(70)),
+        boxShadow: [
+          BoxShadow(
+              color: st.color.withAlpha(dark ? 30 : 18),
+              blurRadius: 12,
+              offset: const Offset(0, 5)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                        colors: [st.color, st.color.withAlpha(170)]),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(st.icon, color: Colors.white, size: 14),
+                      const SizedBox(width: 5),
+                      Text(st.label,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(_ref(o),
+                          style: TextStyle(
+                              color: dark ? Colors.white : AppColors.ink,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14)),
+                    ),
+                    const SizedBox(height: 2),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(o.date,
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey.withAlpha(dark ? 25 : 35)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+            child: Column(
+              children: [
+                for (final it in o.items)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.orange.withAlpha(25),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: Text('${it.qty}×',
+                                style: const TextStyle(
+                                    color: AppColors.orange,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 11)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(it.name,
+                              style: TextStyle(
+                                  color:
+                                      dark ? Colors.white : AppColors.ink,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey.withAlpha(dark ? 25 : 35)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            child: Row(
+              children: [
+                _foot(s.isArabic ? 'القطع' : 'Pieces', '$pieces',
+                    AppColors.orange),
+                if (hasMoney) ...[
+                  const SizedBox(width: 10),
+                  _foot(s.isArabic ? 'المبلغ' : 'Total',
+                      fmtThousands(o.total), AppColors.teal),
+                ],
+                if (hasPoints) ...[
+                  const SizedBox(width: 10),
+                  _foot(s.isArabic ? 'النقاط' : 'Points',
+                      '+${o.points.toInt()}', const Color(0xFF9B59B6)),
+                ],
+              ],
+            ),
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.orange))
-          : _orders.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.receipt_long_outlined,
-                          size: 90, color: AppColors.orange.withAlpha(90)),
-                      const SizedBox(height: 14),
-                      Text(s.isArabic ? 'لا توجد طلبات سابقة' : 'No orders yet',
-                          style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16)),
-                      const SizedBox(height: 6),
-                      Text(
-                          s.isArabic
-                              ? 'ابدأ بالتسوق وستظهر طلباتك هنا'
-                              : 'Start shopping and your orders will appear here',
-                          style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 12)),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _orders.length,
-                  itemBuilder: (ctx, i) {
-                    final o = _orders[i];
-                    final totalQty =
-                        o.items.fold<int>(0, (p, c) => p + c.qty);
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: dark ? const Color(0xFF1E1E28) : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border:
-                            Border.all(color: AppColors.orange.withAlpha(60)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: BoxDecoration(
-                                  color: _statusColor(o.status).withAlpha(20),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(_statusIcon(o.status),
-                                    color: _statusColor(o.status), size: 18),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                        '#${o.id.substring(o.id.length - 6)}',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 14,
-                                            color: dark
-                                                ? Colors.white
-                                                : AppColors.ink)),
-                                    const SizedBox(height: 2),
-                                    Text(o.date,
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey.shade500)),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: _statusColor(o.status).withAlpha(20),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                    s.isArabic
-                                        ? _statusAr(o.status)
-                                        : _statusEn(o.status),
-                                    style: TextStyle(
-                                        color: _statusColor(o.status),
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 11)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Divider(
-                              height: 1,
-                              color: AppColors.orange.withAlpha(40)),
-                          const SizedBox(height: 10),
-                          for (final item in o.items)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(item.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: dark
-                                                ? Colors.grey.shade300
-                                                : AppColors.ink)),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('×${item.qty}',
-                                      style: const TextStyle(
-                                          color: AppColors.orange,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                          const SizedBox(height: 10),
-                          Divider(
-                              height: 1,
-                              color: AppColors.orange.withAlpha(40)),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                  s.isArabic ? 'إجمالي القطع' : 'Total items',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.w700)),
-                              Directionality(
-                                textDirection: TextDirection.ltr,
-                                child: Text('$totalQty',
-                                    style: const TextStyle(
-                                        color: AppColors.orange,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 14)),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+    );
+  }
+
+  Widget _foot(String label, String value, Color c) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.withAlpha(22),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: c.withAlpha(70)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: c, fontSize: 10, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 6),
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Text(value,
+                style: TextStyle(
+                    color: c, fontSize: 12, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
     );
   }
 }
