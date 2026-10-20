@@ -959,15 +959,18 @@ class _WalletScreenState extends State<WalletScreen> {
 
   int _tsOfRow(Map<String, dynamic> row) {
     final hist = row['hist'] as Map<String, dynamic>?;
-    if (hist != null) {
-      return DateTime.tryParse('${hist['date'] ?? ''}')
-              ?.millisecondsSinceEpoch ??
-          0;
-    }
     final inv = row['inv'] as Invoice?;
     final ret = row['ret'] as Map<String, dynamic>?;
+    // ✅ الأحدث أولاً: التاريخ ثم وقت اليوم المستخرج من المعرف
+    final date = hist != null
+        ? '${hist['date'] ?? ''}'
+        : inv != null
+            ? inv.date
+            : '${ret?['date'] ?? ''}';
     final id = inv != null ? inv.id : '${ret?['id'] ?? ''}';
-    return _tsId(id);
+    final day = DateTime.tryParse(date)?.millisecondsSinceEpoch ?? 0;
+    if (day == 0) return _tsId(id);
+    return day + (_tsId(id) % 86400000);
   }
 
   Widget _wChip(String label, String value, Color c) {
@@ -2963,7 +2966,7 @@ Set<String> _histDel = {};
             (_filter == 'return' && h['type'] == 'return'))
           {'kind': h['type'] == 'return' ? 'return' : 'sale', 'hist': h},
     ];
-    merged.sort((a, b) => _tsOfMerged(b).compareTo(_tsOfMerged(a)));
+    merged.sort((a, b) => _tsKeyOf(b).compareTo(_tsKeyOf(a)));
     return [
       Container(
         padding: const EdgeInsets.all(18),
@@ -3185,6 +3188,22 @@ Set<String> _histDel = {};
                       row['ret'] as Map<String, dynamic>, s, dark, false,
                       hint: s.isArabic ? 'طلب شراء أون لاين' : 'Online order'),
     ];
+  }
+
+  /// ✅ مفتاح الترتيب الزمني: التاريخ أولاً ثم وقت اليوم من المعرف
+  int _tsKeyOf(Map<String, dynamic> row) {
+    final hist = row['hist'] as Map<String, dynamic>?;
+    final inv = row['inv'] as Invoice?;
+    final ret = row['ret'] as Map<String, dynamic>?;
+    final date = hist != null
+        ? '${hist['date'] ?? ''}'
+        : inv != null
+            ? inv.date
+            : '${ret?['date'] ?? ''}';
+    final id = inv != null ? inv.id : '${ret?['id'] ?? ''}';
+    final day = DateTime.tryParse(date)?.millisecondsSinceEpoch ?? 0;
+    if (day == 0) return _tsId(id);
+    return day + (_tsId(id) % 86400000);
   }
 
   Widget _histRow(Map<String, dynamic> h, AppSettings s, bool dark) {
