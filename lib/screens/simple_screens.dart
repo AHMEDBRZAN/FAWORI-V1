@@ -71,100 +71,21 @@ class _WalletScreenState extends State<WalletScreen> {
     } catch (_) {}
     final uid = s.user?.id ?? '';
     if (uid.isEmpty || s.isGuest) {
-      if (mounted) setState(() {
-        _invoices = [];
-        _returns = [];
-        _history = const [];
-      });
+      if (mounted) {
+        setState(() {
+          _invoices = [];
+          _returns = [];
+          _history = const [];
+        });
+      }
       return;
     }
-    // ✅ توحيد حسابات العميل بنفس الهاتف (كما يراها المتحكم مجمعة)
-    final ids = <String>{uid};
-    try {
-      String ph = '';
-      final jsonUsers = await StoreService.loadUsers();
-      for (final x in jsonUsers) {
-        if (x.id == uid) ph = x.phone.trim();
-      }
-      if (ph.isEmpty) {
-        for (final x in await userRepo.listUsers()) {
-          if (x.id == uid) ph = x.phone.trim();
-        }
-      }
-      if (ph.isNotEmpty) {
-        for (final x in jsonUsers) {
-          if (x.phone.trim() == ph) ids.add(x.id);
-        }
-        for (final x in await userRepo.listUsers()) {
-          if (x.phone.trim() == ph) ids.add(x.id);
-        }
-      }
-    } catch (_) {}
-    final invTombs = await OrdersService.invoiceTombs();
-    final fireInvs = (await invoiceRepo.list())
-        .where((f) => !invTombs.contains(f.id))
-        .toList();
-    final invs = fireInvs
-        .where((f) => ids.contains(f.userId) && f.type != 'return')
-        .map((f) => Invoice(
-              id: f.id,
-              userId: f.userId,
-              no: f.no,
-              date: f.date,
-              total: f.total,
-              points: f.points,
-              stored: f.stored,
-              type: f.type,
-              items: f.items
-                  .map((it) => InvoiceItem.fromJson(it.toMap()))
-                  .toList(),
-              legacyNo: f.legacyNo,
-              customerName: f.customerName,
-              cashier: f.cashier,
-              time: f.time,
-              source: f.source,
-            ))
-        .toList();
-    final retTombs = await OrdersService.returnTombs();
-    final fireRets = (await returnsRepo.list())
-        .where((f) => !retTombs.contains(f.id))
-        .toList();
-    final rets = <Map<String, dynamic>>[
-      ...fireRets
-          .where((f) => ids.contains(f.userId))
-          .map((f) => <String, dynamic>{
-                'id': f.id,
-                'orderId': f.orderId,
-                'userId': f.userId,
-                'date': f.date,
-                'no': f.no,
-                'purchaseNo': f.purchaseNo,
-                'total': f.total,
-                'points': f.points,
-                'stored': f.stored,
-                'items': f.items.map((it) => it.toMap()).toList(),
-                'legacy': false,
-              }),
-      ...fireInvs
-          .where((f) => ids.contains(f.userId) && f.type == 'return')
-          .map((f) => <String, dynamic>{
-                'id': f.id,
-                'orderId': '',
-                'userId': f.userId,
-                'date': f.date,
-                'no': f.no,
-                'purchaseNo': f.legacyNo,
-                'total': -f.total.abs().toInt(),
-                'points': -f.points.abs(),
-                'stored': -f.stored.abs(),
-                'items': f.items.map((it) => it.toMap()).toList(),
-                'legacy': true,
-              }),
-    ];
+    // ✅ مصدر واحد موحد مع الملف الشخصي
+    final data = await OrdersService.computeUserWallet(uid);
     if (mounted) {
       setState(() {
-        _invoices = invs;
-        _returns = rets;
+        _invoices = data.invoices;
+        _returns = data.returns;
         _history = const [];
       });
     }
