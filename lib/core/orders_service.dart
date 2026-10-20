@@ -720,10 +720,12 @@ static const String _kHistTombKey = 'hist_tombstones';
   static Future<List<Invoice>> loadInvoicesFiltered() async {
     final list = await StoreService.loadInvoices();
     // ✅ دمج الفواتير المقبولة التي لم تصل للسيرفر بعد
+    final tombs0 = await _loadSet(_kInvTombKey);
     try {
       final orders = await loadOrders();
       final ids = list.map((e) => e.id).toSet();
       for (final o in orders) {
+        if (tombs0.contains(o.id)) continue;
         if ((o.status == 'accepted' || o.status == 'completed') &&
             !ids.contains(o.id)) {
           list.add(Invoice(
@@ -860,9 +862,12 @@ static const String _kHistTombKey = 'hist_tombstones';
     if (invs is! List) return;
     // ✅ دمج الطلبات المقبولة غير الملتحقة كفواتير شراء أونلاين
     try {
+      final tombsR = await _loadSet(_kInvTombKey);
+      invs.removeWhere((e) => e is Map && tombsR.contains('${e['id']}'));
       final ids = invs.whereType<Map>().map((e) => '${e['id']}').toSet();
       final ords = await loadOrders();
       for (final o in ords) {
+        if (tombsR.contains(o.id)) continue;
         if (o.userId != userId) continue;
         if (o.status != 'accepted' && o.status != 'completed') continue;
         if (ids.contains(o.id)) continue;
@@ -921,6 +926,7 @@ static const String _kHistTombKey = 'hist_tombstones';
   }
 
   static Future<void> deleteInvoice(String id) async {
+    await markInvoiceDeleted(id); // ✅ إخفاء فوري محلياً قبل دفع الحذف
     final invs = await _fetchJson('assets/data/invoices.json');
     String uid = '';
     if (invs is List) {
@@ -942,6 +948,7 @@ static const String _kHistTombKey = 'hist_tombstones';
   }
 
   static Future<void> deleteReturn(String id) async {
+    await markReturnDeleted(id); // ✅ إخفاء فوري محلياً قبل دفع الحذف
     final rets = await loadReturns();
     String uid = '';
     for (final r in rets) {
