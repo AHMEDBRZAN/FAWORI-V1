@@ -104,7 +104,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
   }
 
-  /// ✅ رفع صورة شخصية وحفظها في المستودع
   /// ✅ رفع الصورة إلى Firestore مباشرة — بدون توكن
   Future<void> _uploadAvatar() async {
     final s = context.read<AppSettings>();
@@ -157,128 +156,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
-  Future<String?> _askToken(BuildContext ctx, AppSettings s) async {
-    final ctrl = TextEditingController();
-    final result = await showDialog<String>(
-      context: ctx,
-      builder: (c) => AlertDialog(
-        backgroundColor: Theme.of(ctx).colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.key_rounded, color: AppColors.orange),
-            const SizedBox(width: 8),
-            Text(s.isArabic ? 'توكن GitHub' : 'GitHub Token',
-                style: const TextStyle(fontWeight: FontWeight.w900)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              s.isArabic
-                  ? 'أدخل توكن GitHub الخاص بك (يُحفظ محلياً ولا يُطلب مرة أخرى).\n\nيُنشأ من: github.com/settings/tokens\nمع صلاحية: repo'
-                  : 'Enter your GitHub token (saved locally, asked once).\n\nCreate at: github.com/settings/tokens\nScope: repo',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              obscureText: true,
-              decoration: InputDecoration(
-                hintText: 'ghp_...',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: Text(s.isArabic ? 'إلغاء' : 'Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.orange,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-            child: Text(s.isArabic ? 'حفظ' : 'Save'),
-          ),
-        ],
-      ),
-    );
-    return (result == null || result.isEmpty) ? null : result;
-  }
-
-  /// ✅ رفع الصورة عبر Cloudflare Worker الموجود أصلاً
-  Future<void> _uploadAvatar() async {
-    final s = context.read<AppSettings>();
-    final uid = s.user?.id ?? '';
-    if (uid.isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    String tk = prefs.getString(_kTokenKey) ?? '';
-    if (tk.isEmpty) {
-      final t = await _askToken(context, s);
-      if (t == null) return;
-      tk = t;
-      await prefs.setString(_kTokenKey, tk);
-    }
-    try {
-      final f = await ImagePicker().pickImage(
-          source: ImageSource.gallery, imageQuality: 82, maxWidth: 600);
-      if (f == null) return;
-      setState(() => _avatarBusy = true);
-      final bytes = await f.readAsBytes();
-      final path = 'assets/images/avatars/avatar_$uid.webp';
-      final body = jsonEncode({
-        'path': path,
-        'content': base64Encode(bytes),
-        'token': tk,
-        'message': 'avatar $uid',
-      });
-      final r = await http
-          .post(
-            Uri.parse(_kProxy),
-            headers: {'Content-Type': 'application/json'},
-            body: body,
-          )
-          .timeout(const Duration(seconds: 30));
-      if (r.statusCode != 200 && r.statusCode != 201) {
-        throw Exception('HTTP ${r.statusCode}');
-      }
-      if (mounted) {
-        setState(() {
-          _avatarBusy = false;
-          _avatarBuster++;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(s.isArabic
-              ? '✅ تم حفظ الصورة الشخصية'
-              : '✅ Avatar saved'),
-          backgroundColor: AppColors.teal,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _avatarBusy = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(s.isArabic
-              ? 'فشل الرفع: $e'
-              : 'Upload failed: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    }
-  }
-
   String _roleAr(String r) {
     switch (r) {
       case 'agent':
