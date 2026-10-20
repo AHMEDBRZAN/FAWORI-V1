@@ -33,7 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
 
-  /// ✅ مزامنة النقاط/الرصيد — نفس منطق المحفظة تماماً
+  /// ✅ مزامنة النقاط/الرصيد من نفس مصدر المحفظة تماماً
   Future<void> _sync() async {
     if (_synced) return;
     _synced = true;
@@ -50,55 +50,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted && b64.isNotEmpty) setState(() => _avatarB64 = b64);
     } catch (_) {}
     try {
-      await OrdersService.recalcUserTotals(uid);
       await s.refreshUser();
     } catch (_) {}
     try {
-      // ✅ توحيد مطابق للمحفظة: نفس الهاتف = نفس الحساب
-      final ids = <String>{uid};
-      try {
-        String ph = '';
-        final jsonUsers = await StoreService.loadUsers();
-        for (final x in jsonUsers) {
-          if (x.id == uid) ph = x.phone.trim();
-        }
-        if (ph.isEmpty) {
-          for (final x in await userRepo.listUsers()) {
-            if (x.id == uid) ph = x.phone.trim();
-          }
-        }
-        if (ph.isNotEmpty) {
-          for (final x in jsonUsers) {
-            if (x.phone.trim() == ph) ids.add(x.id);
-          }
-          for (final x in await userRepo.listUsers()) {
-            if (x.phone.trim() == ph) ids.add(x.id);
-          }
-        }
-      } catch (_) {}
-      final invs = await OrdersService.loadInvoicesFiltered();
-      final rets = await OrdersService.loadReturnsFiltered();
-      int sales = 0;
-      int ret = 0;
-      for (final i in invs) {
-        if (ids.contains(i.userId)) {
-          if (i.type == 'sale') {
-            sales += i.total.toInt();
-          } else if (i.type == 'return') {
-            ret += i.total.toInt().abs();
-          }
-        }
-      }
-      for (final r in rets) {
-        if (ids.contains('${r['userId'] ?? ''}')) {
-          ret += ((r['total'] as num?)?.toInt() ?? 0).abs();
-        }
-      }
-      final net = (sales - ret).clamp(0, 999999999);
+      // ✅ نفس دالة المحفظة: نفس البيانات، نفس الحساب، نفس النتيجة
+      final data = await OrdersService.computeUserWallet(uid);
       if (mounted) {
         setState(() {
-          _pts = net ~/ kPointUnit;
-          _st = net % kPointUnit;
+          _pts = data.points;
+          _st = data.stored;
         });
       }
     } catch (_) {}
