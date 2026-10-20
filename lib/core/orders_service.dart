@@ -793,10 +793,12 @@ static const String _kHistTombKey = 'hist_tombstones';
     } catch (_) {}
     final tombs = await _loadSet(_kInvTombKey);
     if (tombs.isNotEmpty) {
-      final ids = list.map((e) => e.id).toSet();
-      // ✅ احتفظ بطوابع الفواتير أونلاين (لا توجد في JSON أبداً)
-      tombs.removeWhere((id) => !ids.contains(id) && !onlineIds.contains(id));
-      await _saveSet(_kInvTombKey, tombs);
+      // ✅ تنظيف رجعي: احذف الفواتير الموسومة من Firestore أيضاً
+      for (final id in tombs.toList()) {
+        try {
+          await invoiceRepo.delete(id);
+        } catch (_) {}
+      }
       list.removeWhere((e) => tombs.contains(e.id));
     }
     // ✅ تطبيق التعديلات المحلية على الفواتير
@@ -831,9 +833,12 @@ static const String _kHistTombKey = 'hist_tombstones';
     final list = await loadReturns();
     final tombs = await _loadSet(_kRetTombKey);
     if (tombs.isNotEmpty) {
-      final ids = list.map((e) => '${e['id']}').toSet();
-      tombs.removeWhere((id) => !ids.contains(id));
-      await _saveSet(_kRetTombKey, tombs);
+      // ✅ تنظيف رجعي: احذف المرتجعات الموسومة من Firestore أيضاً
+      for (final id in tombs.toList()) {
+        try {
+          await returnsRepo.delete(id);
+        } catch (_) {}
+      }
       list.removeWhere((e) => tombs.contains('${e['id']}'));
     }
     // ✅ تطبيق التعديلات المحلية على المرتجعات
@@ -1104,6 +1109,24 @@ static const String _kHistTombKey = 'hist_tombstones';
     o.status = 'accepted';
     await updateOrder(o);
 
+    // ✅ كتابة الفاتورة في Firestore مباشرة (تظهر فوراً بدون ترحيل)
+    try {
+      await invoiceRepo.upsert(FireInvoice(
+        id: o.id,
+        userId: o.userId,
+        date: o.date,
+        type: 'sale',
+        no: o.invoiceNo,
+        total: o.total,
+        points: o.points.toInt(),
+        stored: o.stored.toInt(),
+        source: 'online',
+        items: o.items
+            .map((it) => FireInvoiceItem(name: it.name, qty: it.qty))
+            .toList(),
+      ));
+    } catch (_) {}
+
     List<dynamic>? invList;
     final invs = await _fetchJson('assets/data/invoices.json');
     invList = invs is List ? invs : null;
@@ -1117,6 +1140,7 @@ static const String _kHistTombKey = 'hist_tombstones';
         'total': o.total,
         'points': o.points.toInt(),
         'stored': o.stored.toInt(),
+        'source': 'online',
         'items': o.items
             .map((e) => {'name': e.name, 'price': 0, 'qty': e.qty})
             .toList(),
@@ -1175,9 +1199,27 @@ static const String _kHistTombKey = 'hist_tombstones';
       }
     }
 
+    final retId = '${o.id}_ret_${DateTime.now().millisecondsSinceEpoch}';
+    // ✅ كتابة المرتجع في Firestore مباشرة (يظهر فوراً بدون ترحيل)
+    try {
+      await returnsRepo.upsert(FireReturn(
+        id: retId,
+        orderId: o.id,
+        userId: o.userId,
+        date: DateTime.now().toString().substring(0, 10),
+        no: invNo,
+        purchaseNo: o.invoiceNo,
+        total: total.toInt(),
+        points: pts,
+        stored: st,
+        items: items
+            .map((it) => FireInvoiceItem(name: it.name, qty: it.qty))
+            .toList(),
+      ));
+    } catch (_) {}
     final rets = await loadReturns();
     rets.add({
-      'id': '${o.id}_ret_${DateTime.now().millisecondsSinceEpoch}',
+      'id': retId,
       'orderId': o.id,
       'userId': o.userId,
       'date': DateTime.now().toString().substring(0, 10),
