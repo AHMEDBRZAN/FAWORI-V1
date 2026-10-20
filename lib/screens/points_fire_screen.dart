@@ -47,8 +47,9 @@ class _PointsFireScreenState extends State<PointsFireScreen> {
     });
     try {
       final users = await userRepo.listUsers();
-      final invs = await StoreService.loadInvoices();
-      final rets = await OrdersService.loadReturns();
+      // ✅ توحيد المصدر: يشمل فواتير أونلاين + المحذوفات + التعديلات المحلية
+      final invs = await OrdersService.loadInvoicesFiltered();
+      final rets = await OrdersService.loadReturnsFiltered();
       final delSnap =
           await FirebaseFirestore.instance.collection('inv_del').get();
       final del = delSnap.docs.map((d) => d.id).toSet();
@@ -67,22 +68,7 @@ class _PointsFireScreenState extends State<PointsFireScreen> {
         pts[uid] = (pts[uid] ?? 0) - ((r['points'] as num?)?.toInt() ?? 0);
         st[uid] = (st[uid] ?? 0) - ((r['stored'] as num?)?.toInt() ?? 0);
       }
-      
-      // ✅ قراءة النقاط والرصيد كما في الصفحة القديمة تماماً
-      try {
-        final oldUsers = await StoreService.loadUsers();
-        final byPhone = <String, User>{};
-        for (final ou in oldUsers) {
-          byPhone[ou.phone.trim()] = ou;
-        }
-        for (final u in users) {
-          final ou = byPhone[u.phone.trim()];
-          if (ou != null) {
-            pts[u.id] = ou.points;
-            st[u.id] = ou.stored;
-          }
-        }
-      } catch (_) {}
+      // ❌ تم حذف كتلة الاستبدال بالقيم القديمة — الاحتساب الآن حي ودقيق
 
       if (mounted) {
         setState(() {
