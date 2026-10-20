@@ -303,7 +303,13 @@ class OrdersService {
     final d = await _fetchJson(kOrdersPath);
     List<Order> list = [];
     if (d is List) {
-      list = d.map((e) => Order.fromJson(e as Map<String, dynamic>)).toList();
+      final seen = <String>{};
+      for (final e in d) {
+        final o = Order.fromJson(e as Map<String, dynamic>);
+        if (seen.contains(o.id)) continue; // ✅ إخفاء السطر المكرر
+        seen.add(o.id);
+        list.add(o);
+      }
     }
     // ✅ دمج طلبات Firestore مع إزالة التكرار بالمعرّف
     try {
@@ -456,6 +462,7 @@ class OrdersService {
     // ✅ 2) إرسال للمستودع بالخلفية
     try {
       final list = await loadOrders();
+      list.removeWhere((x) => x.id == o.id); // ✅ منع التكرار
       list.add(o);
       await _putJson(kOrdersPath, list.map((e) => e.toJson()).toList());
     } catch (_) {
@@ -466,8 +473,8 @@ class OrdersService {
   static Future<void> updateOrder(Order o) async {
     await _saveOverride(o.id, o.status); // ✅ الحالة تتحدث فوراً محلياً
     final list = await loadOrders();
-    final i = list.indexWhere((x) => x.id == o.id);
-    if (i >= 0) list[i] = o;
+    list.removeWhere((x) => x.id == o.id); // ✅ منع التكرار
+    list.add(o);
     await _putJson(kOrdersPath, list.map((e) => e.toJson()).toList());
   }
 
