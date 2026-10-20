@@ -108,6 +108,7 @@ class OrdersService {
   static Future<void> _putJson(String path, dynamic data) async {
     // ✅ لقطة حماية: نسخة كاملة من آخر نشر للطلبات
     if (path == kOrdersPath && data is List) {
+      _ordersCache = null; // ✅ إبطال الكاش عند النشر
       final m = <String, dynamic>{
         for (final e in data.whereType<Map>()) '${e['id']}': e,
       };
@@ -222,6 +223,7 @@ class OrdersService {
   }
 
   static Future<void> _markTomb(String id) async {
+    _ordersCache = null; // ✅ إبطال الكاش
     final m = await _loadTombs();
     m[id] = DateTime.now().millisecondsSinceEpoch + 86400000;
     await _saveTombs(m);
@@ -291,6 +293,7 @@ class OrdersService {
   }
 
   static Future<void> _saveOverride(String id, String status) async {
+    _ordersCache = null; // ✅ إبطال الكاش
     final m = await _loadOverrides();
     m[id] = status;
     await _saveOverrides(m);
@@ -299,7 +302,13 @@ class OrdersService {
     await _saveStatusTimes(t);
   }
 
-  static Future<List<Order>> loadOrders() async {
+  static List<Order>? _ordersCache;
+  static int _ordersCacheAt = 0;
+  static Future<List<Order>> loadOrders({bool force = false}) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force && _ordersCache != null && now - _ordersCacheAt < 8000) {
+      return List<Order>.from(_ordersCache!);
+    }
     final d = await _fetchJson(kOrdersPath);
     List<Order> list = [];
     if (d is List) {
@@ -386,6 +395,8 @@ class OrdersService {
         }
       }
     } catch (_) {}
+    _ordersCache = List<Order>.from(list);
+    _ordersCacheAt = DateTime.now().millisecondsSinceEpoch;
     return list;
   }
 
@@ -800,13 +811,21 @@ static const String _kHistTombKey = 'hist_tombstones';
     } catch (_) {}
     final tombs = await _loadSet(_kInvTombKey);
     if (tombs.isNotEmpty) {
-      // ✅ تنظيف رجعي: احذف الفواتير الموسومة من Firestore أيضاً
-      for (final id in tombs.toList()) {
-        try {
-          await invoiceRepo.delete(id);
-        } catch (_) {}
-      }
       list.removeWhere((e) => tombs.contains(e.id));
+      // ✅ تنظيف رجعي مرة واحدة فقط وبالتوازي (لا يبطئ كل فتح)
+      final p = await SharedPreferences.getInstance();
+      final done = (p.getStringList('inv_fire_cleaned') ?? []).toSet();
+      final pending = tombs.where((id) => !done.contains(id)).toList();
+      if (pending.isNotEmpty) {
+        try {
+          await Future.wait([
+            for (final id in pending)
+              invoiceRepo.delete(id).catchError((_) {})
+          ]);
+        } catch (_) {}
+        done.addAll(pending);
+        await p.setStringList('inv_fire_cleaned', done.toList());
+      }
     }
     // ✅ تطبيق التعديلات المحلية على الفواتير
     final patches = await _loadInvPatches();
@@ -840,13 +859,20 @@ static const String _kHistTombKey = 'hist_tombstones';
     final list = await loadReturns();
     final tombs = await _loadSet(_kRetTombKey);
     if (tombs.isNotEmpty) {
-      // ✅ تنظيف رجعي: احذف المرتجعات الموسومة من Firestore أيضاً
-      for (final id in tombs.toList()) {
-        try {
-          await returnsRepo.delete(id);
-        } catch (_) {}
-      }
       list.removeWhere((e) => tombs.contains('${e['id']}'));
+      final p = await SharedPreferences.getInstance();
+      final done = (p.getStringList('ret_fire_cleaned') ?? []).toSet();
+      final pending = tombs.where((id) => !done.contains(id)).toList();
+      if (pending.isNotEmpty) {
+        try {
+          await Future.wait([
+            for (final id in pending)
+              returnsRepo.delete(id).catchError((_) {})
+          ]);
+        } catch (_) {}
+        done.addAll(pending);
+        await p.setStringList('ret_fire_cleaned', done.toList());
+      }
     }
     // ✅ تطبيق التعديلات المحلية على المرتجعات
     final patches = await _loadRetPatches();
