@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'repositories/invoice_repo.dart';
 import 'repositories/orders_repo.dart';
 import 'dart:convert';
@@ -1092,6 +1093,37 @@ static const String _kHistTombKey = 'hist_tombstones';
   }
 
   static Future<void> deleteUserAll(String userId) async {
+    await markUserDeleted(userId); // ✅ إخفاء فوري محلياً
+    // ✅ حذف من Firestore حتى لا يعود الحساب من هناك أبداً
+    try {
+      final db = FirebaseFirestore.instance;
+      final invSnap = await db
+          .collection('invoices')
+          .where('userId', isEqualTo: userId)
+          .get();
+      final retSnap = await db
+          .collection('returns')
+          .where('userId', isEqualTo: userId)
+          .get();
+      final ordSnap = await db
+          .collection('orders')
+          .where('userId', isEqualTo: userId)
+          .get();
+      WriteBatch? batch;
+      int n = 0;
+      for (final d in [...invSnap.docs, ...retSnap.docs, ...ordSnap.docs]) {
+        batch ??= db.batch();
+        batch.delete(d.reference);
+        n++;
+        if (n >= 400) {
+          await batch.commit();
+          batch = null;
+          n = 0;
+        }
+      }
+      if (batch != null) await batch.commit();
+      await db.collection('users').doc(userId).delete();
+    } catch (_) {}
     final users = await _fetchJson('assets/data/users.json');
     if (users is List) {
       users.removeWhere((u) => u is Map && u['id'] == userId);
