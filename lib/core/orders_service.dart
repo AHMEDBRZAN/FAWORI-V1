@@ -494,6 +494,10 @@ static const String _kInvPatchKey = 'inv_patches_local';
     await p.setStringList(key, v.toList());
   }
 
+  /// ✅ طوابع الحذف للقراءة الموحّدة من كل الشاشات
+  static Future<Set<String>> invoiceTombs() => _loadSet(_kInvTombKey);
+  static Future<Set<String>> returnTombs() => _loadSet(_kRetTombKey);
+
   static Future<void> markInvoiceDeleted(String id) async {
     final s = await _loadSet(_kInvTombKey);
     s.add(id);
