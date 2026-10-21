@@ -341,264 +341,72 @@ class _LoginScreenState extends State<LoginScreen>
                                             const EdgeInsets.only(top: 18),
                                         child: Column(
                                           children: [
-                                            // ✅ زر التبديل هاتف / بريد
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.all(4),
-                                              decoration: BoxDecoration(
-                                                color: dark
-                                                    ? Colors.black.withAlpha(50)
-                                                    : const Color(0xFFF3EEE6),
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: InkWell(
-                                                      onTap: () => setState(
-                                                          () => _useEmail =
-                                                              false),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              11),
-                                                      child: Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                horizontal: 8,
-                                                                vertical: 9),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: !_useEmail
-                                                              ? AppColors.orange
-                                                              : Colors
-                                                                  .transparent,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(11),
-                                                        ),
-                                                        child: Row(
-                                                          mainAxisAlignment:
-                                                              MainAxisAlignment
-                                                                  .center,
-                                                          children: [
-                                                            Icon(
-                                                                Icons
-                                                                    .phone_rounded,
-                                                                size: 15,
-                                                                color: !_useEmail
-                                                                    ? Colors
-                                                                        .white
-                                                                    : Colors
-                                                                        .grey
-                                                                        .shade500),
-                                                            const SizedBox(
-                                                                width: 6),
-                                                            Text(
-                                                                ar
-                                                                    ? 'هاتف'
-                                                                    : 'Phone',
-                                                                style: TextStyle(
-                                                                    color: !_useEmail
-                                                                        ? Colors
-                                                                            .white
-                                                                        : Colors
-                                                                            .grey
-                                                                            .shade600,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w900,
-                                                                    fontSize:
-                                                                        12)),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Expanded(
-                                                    child: InkWell(
-                                                      onTap: () => setState(
-                                                          () => _useEmail =
-                                                              true),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              11),
-                                                      child: Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                horizontal: 8,
-                                                                vertical: 9),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: _useEmail
-                                                              ? AppColors.teal
-                                                              : Colors
-                                                                  .transparent,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(11),
-                                                        ),
-                                                        child: Row(
-                                                          mainAxisAlignment:
-                                                              MainAxisAlignment
-                                                                  .center,
-                                                          children: [
-                                                            Icon(
-                                                                Icons
-                                                                    .email_rounded,
-                                                                size: 15,
-                                                                color: _useEmail
-                                                                    ? Colors
-                                                                        .white
-                                                                    : Colors
-                                                                        .grey
-                                                                        .shade500),
-                                                            const SizedBox(
-                                                                width: 6),
-                                                            Text(
-                                                                ar
-                                                                    ? 'بريد'
-                                                                    : 'Email',
-                                                                style: TextStyle(
-                                                                    color: _useEmail
-                                                                        ? Colors
-                                                                            .white
-                                                                        : Colors
-                                                                            .grey
-                                                                            .shade600,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w900,
-                                                                    fontSize:
-                                                                        12)),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
+                                            TextField(
+                                              controller: _phone,
+                                              focusNode: _phoneFocus,
+                                              keyboardType:
+                                                  TextInputType.phone,
+                                              selectionControls:
+                                                  materialTextSelectionControls,
+                                              magnifierConfiguration:
+                                                  TextMagnifierConfiguration
+                                                      .disabled,
+                                              onTap: () {
+                                                final now = DateTime.now()
+                                                    .millisecondsSinceEpoch;
+                                                if (now - _lastTapMs < 450) {
+                                                  return;
+                                                }
+                                                _lastTapMs = now;
+                                                _phone.selection =
+                                                    TextSelection(
+                                                        baseOffset: 0,
+                                                        extentOffset:
+                                                            _phone.text.length);
+                                              },
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              onSubmitted: (_) =>
+                                                  _passFocus.requestFocus(),
+                                              style: TextStyle(
+                                                  color: dark
+                                                      ? Colors.white
+                                                      : AppColors.ink),
+                                              decoration: InputDecoration(
+                                                hintText: ar
+                                                    ? 'رقم الهاتف'
+                                                    : 'Phone',
+                                                filled: true,
+                                                fillColor: dark
+                                                    ? const Color(0xFF26262E)
+                                                    : const Color(0xFFFAFAFA),
+                                                prefixIcon: const Icon(
+                                                    Icons.phone_rounded,
+                                                    color: AppColors.orange),
+                                                border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            30)),
+                                                enabledBorder:
+                                                    OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          30),
+                                                  borderSide: BorderSide(
+                                                      color: AppColors.orange
+                                                          .withAlpha(90)),
+                                                ),
+                                                focusedBorder:
+                                                    OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          30),
+                                                  borderSide: const BorderSide(
+                                                      color: AppColors.teal,
+                                                      width: 2),
+                                                ),
                                               ),
                                             ),
-                                            const SizedBox(height: 16),
-                                            // ✅ حقل الهاتف (فقط في وضع الهاتف)
-                                            if (!_useEmail)
-                                              TextField(
-                                                controller: _phone,
-                                                focusNode: _phoneFocus,
-                                                keyboardType:
-                                                    TextInputType.phone,
-                                                selectionControls:
-                                                    materialTextSelectionControls,
-                                                magnifierConfiguration:
-                                                    TextMagnifierConfiguration
-                                                        .disabled,
-                                                onTap: () {
-                                                  final now = DateTime.now()
-                                                      .millisecondsSinceEpoch;
-                                                  if (now - _lastTapMs < 450) {
-                                                    return;
-                                                  }
-                                                  _lastTapMs = now;
-                                                  _phone.selection =
-                                                      TextSelection(
-                                                          baseOffset: 0,
-                                                          extentOffset: _phone
-                                                              .text.length);
-                                                },
-                                                textInputAction:
-                                                    TextInputAction.next,
-                                                onSubmitted: (_) =>
-                                                    _passFocus.requestFocus(),
-                                                style: TextStyle(
-                                                    color: dark
-                                                        ? Colors.white
-                                                        : AppColors.ink),
-                                                decoration: InputDecoration(
-                                                  hintText:
-                                                      ar ? 'رقم الهاتف' : 'Phone',
-                                                  filled: true,
-                                                  fillColor: dark
-                                                      ? const Color(0xFF26262E)
-                                                      : const Color(0xFFFAFAFA),
-                                                  prefixIcon: const Icon(
-                                                      Icons.phone_rounded,
-                                                      color: AppColors.orange),
-                                                  border: OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              30)),
-                                                  enabledBorder:
-                                                      OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            30),
-                                                    borderSide: BorderSide(
-                                                        color: AppColors.orange
-                                                            .withAlpha(90)),
-                                                  ),
-                                                  focusedBorder:
-                                                      OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            30),
-                                                    borderSide: const BorderSide(
-                                                        color: AppColors.teal,
-                                                        width: 2),
-                                                  ),
-                                                ),
-                                              ),
-                                            // ✅ حقل البريد (فقط في وضع البريد)
-                                            if (_useEmail)
-                                              TextField(
-                                                controller: _email,
-                                                keyboardType:
-                                                    TextInputType.emailAddress,
-                                                textInputAction:
-                                                    TextInputAction.next,
-                                                onSubmitted: (_) =>
-                                                    _passFocus.requestFocus(),
-                                                style: TextStyle(
-                                                    color: dark
-                                                        ? Colors.white
-                                                        : AppColors.ink),
-                                                decoration: InputDecoration(
-                                                  hintText: ar
-                                                      ? 'البريد الإلكتروني'
-                                                      : 'Email',
-                                                  filled: true,
-                                                  fillColor: dark
-                                                      ? const Color(0xFF26262E)
-                                                      : const Color(0xFFFAFAFA),
-                                                  prefixIcon: const Icon(
-                                                      Icons.email_rounded,
-                                                      color: AppColors.teal),
-                                                  border: OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              30)),
-                                                  enabledBorder:
-                                                      OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            30),
-                                                    borderSide: BorderSide(
-                                                        color: AppColors.teal
-                                                            .withAlpha(90)),
-                                                  ),
-                                                  focusedBorder:
-                                                      OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            30),
-                                                    borderSide: const BorderSide(
-                                                        color: AppColors.teal,
-                                                        width: 2),
-                                                  ),
-                                                ),
-                                              ),
                                             const SizedBox(height: 14),
                                             TextField(
                                               controller: _pass,
