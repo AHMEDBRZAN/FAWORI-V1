@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -64,17 +65,13 @@ class _GateState extends State<_Gate> {
 
   Future<void> _boot() async {
     final st = context.read<AppSettings>();
-    for (int i = 0; i < 3; i++) {
-      try {
-        await st.restoreSession().timeout(const Duration(seconds: 8));
-        break;
-      } catch (_) {
-        if (i < 2) {
-          await Future.delayed(const Duration(milliseconds: 800));
-        }
-      }
-    }
+    // ✅ استعادة فورية من التخزين المحلي — بدون انتظار الشبكة إطلاقاً
+    try {
+      await st.restoreLocal();
+    } catch (_) {}
     if (mounted) setState(() => _ready = true);
+    // ✅ التحديث الشبكي (النقاط/البيانات) في الخلفية بعد بناء الواجهة
+    unawaited(st.restoreSession());
   }
 
   @override
