@@ -550,6 +550,32 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
+  /// ✅ استعادة سريعة من التخزين المحلي فقط — بدون أي طلب شبكة
+  Future<void> restoreLocal() async {
+    final p = await SharedPreferences.getInstance();
+    _isArabic = p.getBool('isArabic') ?? true;
+    _isDark = p.getBool('isDark') ?? false;
+    final role = p.getString('userRole') ?? '';
+    final id = p.getString('userId') ?? '';
+    if (role.isEmpty || role == 'guest' || id.isEmpty) {
+      _user = null;
+      _isImageAdmin = false;
+      notifyListeners();
+      return;
+    }
+    _user = User(
+      id: id,
+      name: p.getString('userName') ?? '',
+      role: role,
+      phone: p.getString('userPhone') ?? '',
+      password: '',
+      points: p.getInt('userPoints') ?? 0,
+      stored: p.getInt('userStored') ?? 0,
+    );
+    _isImageAdmin = isAdmin;
+    notifyListeners();
+  }
+
   Future<void> restoreSession() async {
     final p = await SharedPreferences.getInstance();
     _isArabic = p.getBool('isArabic') ?? true;
