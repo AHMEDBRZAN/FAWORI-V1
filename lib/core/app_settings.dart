@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'messenger.dart';
 import 'orders_service.dart';
 import 'store_service.dart';
 import 'repositories/orders_repo.dart';
-import 'orders_service.dart';
 import 'repositories/invoice_repo.dart';
 import 'repositories/user_repo.dart' as repo;
 
@@ -295,6 +296,72 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
+  /// ✅ دخول بالبريد عبر Firebase Auth (وضع جديد — لا يمس حسابات الهاتف)
+  Future<void> loginWithEmail(String email, String pass) async {
+    fb.UserCredential cred;
+    try {
+      cred = await fb.FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: pass);
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception(_isArabic
+            ? 'لا يوجد حساب بهذا البريد'
+            : 'No account for this email');
+      }
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw Exception(
+            _isArabic ? 'كلمة المرور غير صحيحة' : 'Wrong password');
+      }
+      throw Exception(
+          e.message ?? (_isArabic ? 'فشل الدخول' : 'Login failed'));
+    }
+    final uid = cred.user!.uid;
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (!doc.exists) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({
+        'name': email.split('@').first,
+        'role': 'client',
+        'phone': '',
+        'email': email,
+        'points': 0,
+        'stored': 0,
+      });
+      _user = User(
+        id: uid,
+        name: email.split('@').first,
+        role: 'client',
+        phone: '',
+        password: '',
+        points: 0,
+        stored: 0,
+      );
+    } else {
+      final d = doc.data()!;
+      _user = User(
+        id: uid,
+        name: '${d['name'] ?? ''}',
+        role: '${d['role'] ?? 'client'}',
+        phone: '${d['phone'] ?? ''}',
+        password: '',
+        points: (d['points'] as num?)?.toInt() ?? 0,
+        stored: (d['stored'] as num?)?.toInt() ?? 0,
+      );
+    }
+    _user = await _withInvoiceTotals(_user!);
+    _isImageAdmin = isAdmin;
+    _seenLoaded = false;
+    _seenIds = {};
+    await _savePrefs();
+    startOrderPolling();
+    notifyListeners();
+  }
+
   Future<bool> loginWithFirebase(String phone, String password) async {
     try {
       repo.AppUser? au;
@@ -470,10 +537,16 @@ class AppSettings extends ChangeNotifier {
       await p.setString('userId', _user!.id);
       await p.setString('userName', _user!.name);
       await p.setString('userRole', _user!.role);
+      await p.setString('userPhone', _user!.phone);
+      await p.setInt('userPoints', _user!.points);
+      await p.setInt('userStored', _user!.stored);
     } else {
       await p.remove('userId');
       await p.remove('userName');
       await p.remove('userRole');
+      await p.remove('userPhone');
+      await p.remove('userPoints');
+      await p.remove('userStored');
     }
   }
 
@@ -491,22 +564,44 @@ class AppSettings extends ChangeNotifier {
       return;
     }
 
+    // ✅ استعادة فورية من التخزين المحلي — بدون انتظار الشبكة
+    final cachedId = p.getString('userId') ?? '';
+    if (cachedId.isNotEmpty && role.isNotEmpty) {
+      _user = User(
+        id: cachedId,
+        name: p.getString('userName') ?? '',
+        role: role,
+        phone: p.getString('userPhone') ?? '',
+        password: '',
+        points: p.getInt('userPoints') ?? 0,
+        stored: p.getInt('userStored') ?? 0,
+      );
+      _isImageAdmin = isAdmin;
+      notifyListeners(); // ← الواجهة تُبنى خلال أجزاء من الثانية
+    }
+
+    // ✅ تحديث النقاط/البيانات من الشبكة في الخلفية
     try {
       final au = await repo.userRepo.restore();
       if (au != null && au.role != 'guest') {
         _user = await _withInvoiceTotals(_toUser(au));
         _isImageAdmin = isAdmin;
+        await _savePrefs();
         startOrderPolling();
-      } else {
+        notifyListeners();
+      } else if (cachedId.isEmpty) {
         await p.remove('userId');
         await p.remove('userName');
         await p.remove('userRole');
+        notifyListeners();
       }
     } catch (_) {
-      await p.remove('userId');
-      await p.remove('userName');
-      await p.remove('userRole');
+      if (cachedId.isEmpty) {
+        await p.remove('userId');
+        await p.remove('userName');
+        await p.remove('userRole');
+        notifyListeners();
+      }
     }
-    notifyListeners();
   }
 }
