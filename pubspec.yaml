@@ -19,14 +19,13 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
-  supabase_flutter: ^2.8.0   # ⚠️ احذف هذا السطر إن تأكّدنا أنه غير مستخدم (يُقلّص الحزمة ~1.5MB)
-  universal_html: ^2.2.4     # ✅ بديل dart:html — يعمل على Web + Android معاً
+  universal_html: ^2.2.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  flutter_launcher_icons: ^0.14.1   # ✅ توليد أيقونة التطبيق تلقائياً
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
@@ -42,14 +41,11 @@ flutter:
         - asset: assets/fonts/Cairo-Black.ttf
           weight: 900
 
-# ======================================================
-# 🎨 إعداد أيقونة التطبيق الملكية (ألوان فاوري)
-# ======================================================
+# 🎨 أيقونة التطبيق الملكية (ألوان فاوري)
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/logo.png"        # صورة مربعة 1024×1024 (PNG)
+  image_path: "assets/images/logo.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#F26B0F"          # خلفية برتقالي فاوري
-  adaptive_icon_foreground: "assets/images/logo_fg.png"  # الشعار بخلفية شفافة 1024×1024
-  remove_alpha_ios: true
+  adaptive_icon_background: "#F26B0F"
+  adaptive_icon_foreground: "assets/images/logo_fg.png"
